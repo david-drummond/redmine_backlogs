@@ -4,9 +4,7 @@ class RbTask < Issue
   unloadable
 
   def self.tracker
-    task_tracker = Backlogs.setting[:task_tracker]
-    return nil if task_tracker.blank?
-    return Integer(task_tracker)
+    RbSprintTaskTracker.id
   end
 
   def self.rb_safe_attributes(params)
