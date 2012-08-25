@@ -174,7 +174,9 @@ namespace :redmine do
 
     desc "Create the sprint task tracker"
     task :create_sprint_tracker => :environment do |t|
-      p create_new_tracker
+      tracker = create_new_tracker
+      Backlogs.setting[:task_tracker] = tracker.id
+      p tracker
     end
 
   end
