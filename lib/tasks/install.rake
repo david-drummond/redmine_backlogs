@@ -180,27 +180,36 @@ namespace :redmine do
       end
     end
 
-    def create_new_tracker
-      repeat = true
-      puts "Creating a new task tracker."
-      while repeat
-        print "Please type the tracker's name: "
-        STDOUT.flush
-        name = STDIN.gets.chomp!
-        if Tracker.find(:first, :conditions => "name='#{name}'")
-          puts "Ooops! That name is already taken."
-          next
-        end
-        print "You typed '#{name}'. Is this correct? (y/n) "
-        STDOUT.flush
+    # Create sprint task tracker.
+    # 
+    # TODO: Rename this to create_sprint_task_tracker? 
 
-        if (STDIN.gets.chomp!).match("y")
-          tracker = Tracker.new(:name => name)
-          tracker.save!
-          repeat = false
-        end
+    def create_new_tracker
+      config_dir = File.join(File.dirname(__FILE__),'../../config')
+      config_file = File.join(config_dir,'config.yml')
+      config_file = File.expand_path(config_file)
+      unless File.exists?(config_file) then
+        puts "Can't find backlogs config.yml (#{config_file})"
+        exit 1
+      end
+      config = YAML.load_file(config_file)
+      name = config[:sprint_tracker_name]
+      if Tracker.exists?(:name => name) then
+        puts "Sprint task tracker '#{name}' already exists!"
+        puts "Use this tracker or change the name in '#{config_file}'."
+        exit 1
+      else
+        puts "Creating a sprint task tracker: '#{name}'"
+        tracker = Tracker.new(:name => name)
+        tracker.save!
       end
       tracker.id
     end
+
+    desc "Create the sprint task tracker"
+    task :create_sprint_tracker => :environment do |t|
+      create_new_tracker
+    end
+
   end
 end
