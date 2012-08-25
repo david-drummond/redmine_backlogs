@@ -10,4 +10,13 @@ class RbSprintTaskTracker < Tracker
   def self.id
     Backlogs.setting[:task_tracker]
   end
+
+  # Return an instance of the tracker for backlogs.
+  #
+  # Use this instead of finding it.
+  # We're using a similar naming convention to singleton pattern.
+
+  def self.instance
+    self.find(self.id)
+  end
 end
