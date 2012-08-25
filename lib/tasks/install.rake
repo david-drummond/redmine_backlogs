@@ -105,56 +105,8 @@ namespace :redmine do
         end
       end
 
-      if ENV['task_tracker'] && ENV['task_tracker'] != ''
-        if ! Tracker.find(:first, :conditions => ["name=?", ENV['task_tracker']])
-          puts "Creating task tracker '#{ENV['task_tracker']}'"
-          tracker = Tracker.new(:name => ENV['task_tracker'])
-          tracker.save!
-        end
-        Backlogs.setting[:task_tracker] = Tracker.find_by_name(ENV['task_tracker']).id
-      else
-        if !RbTask.tracker
-          # Check if there is at least one tracker available
-          puts "-----------------------------------------------------"
-          if Backlogs.setting[:story_trackers].length < trackers.length
-            invalid = true
-            while invalid
-              # If there's at least one, ask the user to pick one
-              puts "Which tracker do you want to use for your tasks?"
-              available_trackers = trackers.select{|t| !Backlogs.setting[:story_trackers].include? t.id}
-              j = 0
-              available_trackers.each_with_index { |t, i| puts "  #{ j = i + 1 }. #{ t.name }" }
-              # puts "  #{ j + 1 }. <<new>>"
-              print "Choose one from above (or choose none to create a new tracker): "
-              STDOUT.flush
-              selection = (STDIN.gets.chomp!).split(/\D+/)
-
-              if selection.length > 0 and selection.first.to_i <= available_trackers.length
-                # If the user picked one, use that
-                print "You selected #{available_trackers[selection.first.to_i-1].name}. Is this correct? (y/n) "
-                STDOUT.flush
-                if (STDIN.gets.chomp!).match("y")
-                  Backlogs.setting[:task_tracker] = available_trackers[selection.first.to_i-1].id
-                  invalid = false
-                end
-              elsif selection.length == 0 or selection.first.to_i == j + 1
-                # If the user chose to create a new one, then ask for the name
-                Backlogs.setting[:task_tracker] = create_new_tracker
-                invalid = false
-              else
-                puts "Oooops! That's not a valid selection. Please try again."
-              end
-            end
-          else
-            Backlogs.setting[:task_tracker] = create_new_tracker
-            #puts "You don't have any trackers available for use with tasks."
-            #puts "Please create a new tracker via the Redmine admin interface,"
-            #puts "then re-run this installer. Press any key to continue."
-            #STDOUT.flush
-            #STDIN.gets
-          end
-        end
-      end
+      tracker = create_new_tracker
+      Backlogs.setting[:task_tracker] = tracker.id
 
       puts "Story and task trackers are now set."
 
@@ -181,34 +133,48 @@ namespace :redmine do
     end
 
     # Create sprint task tracker.
-    # 
-    # TODO: Rename this to create_sprint_task_tracker? 
 
     def create_new_tracker
-      config_dir = File.join(File.dirname(__FILE__),'../../config')
-      config_file = File.join(config_dir,'config.yml')
-      config_file = File.expand_path(config_file)
-      unless File.exists?(config_file) then
-        puts "Can't find backlogs config.yml (#{config_file})"
-        exit 1
-      end
-      config = YAML.load_file(config_file)
-      name = config[:sprint_tracker_name]
-      if Tracker.exists?(:name => name) then
-        puts "Sprint task tracker '#{name}' already exists!"
-        puts "Use this tracker or change the name in '#{config_file}'."
-        exit 1
-      else
-        puts "Creating a sprint task tracker: '#{name}'"
-        tracker = Tracker.new(:name => name)
+      default_name = 'Sprint Task'
+      yes = proc {|prompt|
+        print(prompt + ' [y/n]: ')
+        response = STDIN.readline.chomp
+        /^y$/i === response
+      }
+      get_name = proc {|default|
+        print "Enter name for sprint task tracker ['#{default}']: "
+        response = STDIN.readline.chomp
+        if response.blank? then
+          default
+        else
+          response
+        end
+      }
+      create = proc {|name|
+        puts "Creating sprint task tracker: '#{name}'"
+        tracker = RbSprintTaskTracker.new(:name => name)
         tracker.save!
+        tracker
+      }
+
+      name = get_name.call(default_name)
+
+      # Get name from stdin (if no yaml or name exists):
+      if RbSprintTaskTracker.exists?(:name => name) then
+        begin
+          puts "Sprint task tracker '#{name}' already exists!"
+          if yes.call('Use this?') then
+            return RbSprintTaskTracker.find_by_name(name)
+          end
+          name = get_name.call(default_name)
+        end while RbSprintTaskTracker.exists?(:name => name)
       end
-      tracker.id
+      tracker = create.call(name)
     end
 
     desc "Create the sprint task tracker"
     task :create_sprint_tracker => :environment do |t|
-      create_new_tracker
+      p create_new_tracker
     end
 
   end
