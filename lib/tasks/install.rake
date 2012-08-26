@@ -112,20 +112,13 @@ namespace :redmine do
 
       default_name = Backlogs.setting[:default_sprint_task_tracker_name]
       if default_name.blank? then
-        config_dir  = File.join(File.dirname(__FILE__),'../../config')
-        config_file = File.join(config_dir,'config.yml')
-        config_file = File.expand_path(config_file)
-        if File.exists?(config_file) then
-          config = YAML.load_file(config_file)
-          default_name = config[:default_sprint_task_tracker_name]
-          Backlogs.setting[:default_sprint_task_tracker_name] = default_name
-        else
-          # This shouldn't happen as we are commiting the yml file.
-          puts "Can't find backlogs config.yml (#{config_file})"
-          default_name = 'Sprint Task'
-          Backlogs.setting[:default_sprint_task_tracker_name] = default_name
-        end
+        default_name = yaml_config[:default_sprint_task_tracker_name]
       end
+      if default_name.blank? then
+        default_name = 'Sprint Task'
+      end
+
+      Backlogs.setting[:default_sprint_task_tracker_name] = default_name
 
       # Create or get sprint task tracker and assign it to
 
@@ -153,6 +146,19 @@ namespace :redmine do
         puts " Whoa! An error occurred during database migration."
         puts " Please see redmine_backlogs_install.log for more info."
         puts "*******************************************************"
+      end
+    end
+
+    # Get yaml config from config/config.yml.
+
+    def yaml_config
+      config_dir  = File.join(File.dirname(__FILE__),'../../config')
+      config_file = File.join(config_dir,'config.yml')
+      config_file = File.expand_path(config_file)
+      if File.exists?(config_file) then
+        YAML.load_file(config_file)
+      else
+        {}
       end
     end
 
@@ -197,9 +203,14 @@ namespace :redmine do
     desc "Create the sprint task tracker"
     task :create_sprint_tracker => :environment do |t|
       default_name = Backlogs.setting[:default_sprint_task_tracker_name]
+      if default_name.blank? then
+        default_name = yaml_config[:default_sprint_task_tracker_name]
+      end
+      if default_name.blank? then
+        default_name = 'Sprint Task'
+      end
       tracker = create_new_tracker(default_name)
       Backlogs.setting[:task_tracker] = tracker.id
-
       p tracker
     end
 
