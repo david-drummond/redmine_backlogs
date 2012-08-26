@@ -114,7 +114,7 @@
     <tbody>
       <% IssueStatus.all.each do |s| %>
       <tr>
-        <td><%= check_box_tag(s.id , "settings[default_task_statuses][#{s.id}]") %></td>
+        <td><%= check_box_tag("settings[default_task_statuses][#{s.id}]") %></td>
         <td><%= s.name %></td>
       </tr>
       <% end %>
