@@ -7,6 +7,11 @@
     td.selected { font-weight: bold; }
     td.ok { background-color:#00FF00 }
     td.error { background-color:#FF0000 }
+    /*
+    Indent tables like p-tags.
+    See application.css .tabular
+    */
+    .tabular table {margin:3px 0 3px 180px;}
   </style>
 <%- end %>
 
@@ -88,6 +93,33 @@
 <p>
   <%= content_tag(:label, l(:backlogs_task_tracker)) %>
   <%= select_tag("settings[task_tracker]", options_from_collection_for_select(Tracker.all, :id, :name, RbTask.tracker)) %>
+</p>
+
+<p>
+  <%= content_tag(:label, 'Default issue status for taskboard') %>
+  Select default issue statuses to be used by all projects for
+  <b>tasks</b> used in sprints. These statuses will be used as columns
+  on the taskboard. These statuses can be overridden by the project in
+  the project's backlogs configuration tab.
+</p>
+
+<p>
+  <table >
+    <thead>
+      <tr>
+        <th></th>
+        <th>Default task statuses</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% IssueStatus.all.each do |s| %>
+      <tr>
+        <td><%= check_box_tag(s.id , "settings[default_task_statuses][#{s.id}]") %></td>
+        <td><%= s.name %></td>
+      </tr>
+      <% end %>
+    </tbody>
+  </table>
 </p>
 
 <p>
