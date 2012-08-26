@@ -112,9 +112,17 @@
       </tr>
     </thead>
     <tbody>
+      <% statuses = Backlogs.setting[:default_task_statuses] || {} %>
       <% IssueStatus.all.each do |s| %>
+      <% checked = statuses.has_key?(s.id.to_s) %>
       <tr>
-        <td><%= check_box_tag("settings[default_task_statuses][#{s.id}]") %></td>
+        <td><%=
+        check_box_tag(
+          "settings[default_task_statuses][#{s.id}]",
+          "1",
+          checked
+        )
+        %></td>
         <td><%= s.name %></td>
       </tr>
       <% end %>
