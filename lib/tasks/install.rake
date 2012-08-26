@@ -105,7 +105,31 @@ namespace :redmine do
         end
       end
 
-      tracker = create_new_tracker
+      # Get the default sprint task tracker name.
+      #
+      # Store it in settings if necessary.
+      # TODO: put the ENV setting back?
+
+      default_name = Backlogs.setting[:default_sprint_task_tracker_name]
+      if default_name.blank? then
+        config_dir  = File.join(File.dirname(__FILE__),'../../config')
+        config_file = File.join(config_dir,'config.yml')
+        config_file = File.expand_path(config_file)
+        if File.exists?(config_file) then
+          config = YAML.load_file(config_file)
+          default_name = config[:default_sprint_task_tracker_name]
+          Backlogs.setting[:default_sprint_task_tracker_name] = default_name
+        else
+          # This shouldn't happen as we are commiting the yml file.
+          puts "Can't find backlogs config.yml (#{config_file})"
+          default_name = 'Sprint Task'
+          Backlogs.setting[:default_sprint_task_tracker_name] = default_name
+        end
+      end
+
+      # Create or get sprint task tracker and assign it to
+
+      tracker = create_new_tracker(default_name)
       Backlogs.setting[:task_tracker] = tracker.id
 
       puts "Story and task trackers are now set."
@@ -134,8 +158,7 @@ namespace :redmine do
 
     # Create sprint task tracker.
 
-    def create_new_tracker
-      default_name = 'Sprint Task'
+    def create_new_tracker default_name
       yes = proc {|prompt|
         print(prompt + ' [y/n]: ')
         response = STDIN.readline.chomp
@@ -159,7 +182,6 @@ namespace :redmine do
 
       name = get_name.call(default_name)
 
-      # Get name from stdin (if no yaml or name exists):
       if RbSprintTaskTracker.exists?(:name => name) then
         begin
           puts "Sprint task tracker '#{name}' already exists!"
@@ -174,8 +196,10 @@ namespace :redmine do
 
     desc "Create the sprint task tracker"
     task :create_sprint_tracker => :environment do |t|
-      tracker = create_new_tracker
+      default_name = Backlogs.setting[:default_sprint_task_tracker_name]
+      tracker = create_new_tracker(default_name)
       Backlogs.setting[:task_tracker] = tracker.id
+
       p tracker
     end
 
