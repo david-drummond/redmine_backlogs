@@ -22,7 +22,9 @@ class RbSprintTaskTracker < Tracker
 
   # Fetch all roles that can have workflows for sprint task statuses.
   #
-  # TODO: we just fetch all non-builtins atm.
+  # TODO: we just fetch all non-builtins atm; we don't really
+  # worry about what non-builtins can or can't do at this point;
+  # we just do a blanket update.
 
   def roles
     roles = ::Role.all.delete_if{|r| r.builtin? }
@@ -47,10 +49,20 @@ class RbSprintTaskTracker < Tracker
   end
 
   # Insert missing workflows.
+  #
+  # Returns array of saved Workflow objects.
+  #
+  # See missing_workflows for what determines a missing workflow.
+  # 
+  # TODO: delete workflows that should no longer apply (if they
+  # are not included in the defaults or in any projects that override
+  # the defaults)?
 
   def update_workflows
-    missing_workflows.each{|w|
+    missing_workflows.map{|w|
+      w = Workflow.new(w[0])
       w.save!
+      w
     }
   end
 
@@ -59,27 +71,33 @@ class RbSprintTaskTracker < Tracker
   # The workflows are instantiated but not saved to database.
   #
   # Additions may be required because:
-  # - the default tracker statuses have been altered
-  #   See Backlogs.setting[:default_task_statuses]
-  # - a project has overridden the defaults
-  # This is done for all roles at the moment.
 
   def missing_workflows
-    result = []
+    self.required_workflows.select{|w|!w[1]}
+  end
 
+  # Returns all the workflows we *should* have.
+  #
+  # Returns in the same format as workflows_for.
+  #
+  # We require workflows for:
+  # - The default tracker statuses (which get altered
+  #   on the main backlogs settings apge).
+  #   See Backlogs.setting[:default_task_statuses].
+  # - A project has overridden the defaults and has
+  #   specified its own issue statuses.
+  # This is done for all roles at the moment.
+  # 
+  # TODO: check for per-project statuses.
+
+  def required_workflows
+    result = []
     # Check for missing default task statuses:
     ids = self.issue_statuses.map{|i|i.id}
     ids.combination(2).each{|comb2|
       result.concat(workflows_for(*comb2))
     }
-
-    # TODO: check for per-project statuses.
-    # for each project
-    # - find sprint task issue statuses
-    #   which aren't already in default
-    #   or each other
-
-    result.select{|w|!w[1]}.map{|w| Workflow.new(w[0])}
+    result
   end
 
   # Determine all possible workflows for 2 issue statuses (for all
