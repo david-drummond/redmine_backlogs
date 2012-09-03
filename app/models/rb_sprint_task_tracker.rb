@@ -38,14 +38,19 @@ class RbSprintTaskTracker < Tracker
   # the default statuses, then these will be returned.
 
   def issue_statuses project=nil
+
+    # Grab default ids.
     if project.nil? then
       defaults = Backlogs.setting[:default_task_statuses]
       ids = defaults.keys.map{|k| k.to_i }
       IssueStatus.find(ids)
+
+    # Grab project specific status.
     else
       # TODO
       []
     end
+
   end
 
   # Insert missing workflows.
@@ -68,9 +73,7 @@ class RbSprintTaskTracker < Tracker
 
   # Return array of any workflows that should be added to the tracker.
   #
-  # The workflows are instantiated but not saved to database.
-  #
-  # Additions may be required because:
+  # Returns in the same format as workflows_for.
 
   def missing_workflows
     self.required_workflows.select{|w|!w[1]}
@@ -82,7 +85,7 @@ class RbSprintTaskTracker < Tracker
   #
   # We require workflows for:
   # - The default tracker statuses (which get altered
-  #   on the main backlogs settings apge).
+  #   on the main backlogs settings page).
   #   See Backlogs.setting[:default_task_statuses].
   # - A project has overridden the defaults and has
   #   specified its own issue statuses.
