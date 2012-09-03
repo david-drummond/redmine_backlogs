@@ -69,6 +69,7 @@ Redmine::Plugin.register :redmine_backlogs do
                                       }
     permission :view_master_backlog,  { 
                                         :rb_master_backlogs  => [:show, :menu],
+                                        :rb_issue_statuses   => [:edit, :update],
                                         :rb_sprints          => [:index, :show, :download],
                                         :rb_hooks_render     => [:view_issues_sidebar],
                                         :rb_wikis            => :show,
@@ -135,6 +136,7 @@ Redmine::Plugin.register :redmine_backlogs do
   end
 
   menu :project_menu, :rb_master_backlogs, { :controller => :rb_master_backlogs, :action => :show }, :caption => :label_backlogs, :after => :issues, :param => :project_id, :if => Proc.new { Backlogs.configured? }
+  menu :project_menu, :rb_issue_statuses, { :controller => :rb_issue_statuses, :action => :edit }, :caption => 'Backlogs Config', :after => :rb_master_backlogs, :param => :project_id, :if => Proc.new { Backlogs.configured? }
   menu :project_menu, :rb_releases, { :controller => :rb_releases, :action => :index }, :caption => :label_release_plural, :after => :rb_master_backlogs, :param => :project_id, :if => Proc.new { Backlogs.configured? }
   menu :application_menu, :rb_statistics, { :controller => :rb_all_projects, :action => :statistics}, :caption => :label_scrum_statistics, :if => Proc.new { Backlogs.configured? && User.current.allowed_to?({:controller => :rb_all_projects, :action => :statistics}, nil, :global => true) }
 end

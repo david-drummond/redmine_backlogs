@@ -1,0 +1,27 @@
+<h2><%=@title%></h2>
+
+<p>
+  Select issue statuses you want to use for sprint tasks.
+  These will show up as columns on the taskboard.
+  If you leave all the boxes unchecked, the default
+  issues statuses will be used.  These are defined in
+  the main backlogs configuration page.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>Issue status name</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @issue_statuses.each do |s| %>
+    <tr>
+      <td ><input type="checkbox" /></td>
+      <td ><%= s.name%></td>
+    </tr>
+    <% end %>
+  </tbody>
+</table>
+
