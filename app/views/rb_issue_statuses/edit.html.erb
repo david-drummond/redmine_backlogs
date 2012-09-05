@@ -8,13 +8,8 @@
   the main backlogs configuration page.
 </p>
 
-<!--
-TODO:
-method="post" clears my login session for some reason.
-Stupid magic happening somewhere.
--- danb, Wed Sep  5 15:05:29 EST 2012
--->
-<form action="<%= url_for(:controller => 'rb_issue_statuses', :action => 'update') %>" method="get" >
+<form action="<%= url_for(:controller => 'rb_issue_statuses', :action => 'update') %>" method="post" >
+  <%= hidden_field_tag "authenticity_token", form_authenticity_token %>
   <table>
     <thead>
       <tr>
