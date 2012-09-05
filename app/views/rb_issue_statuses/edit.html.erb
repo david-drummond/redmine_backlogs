@@ -25,7 +25,7 @@ Stupid magic happening somewhere.
     <tbody>
       <% @issue_statuses.each do |s| %>
       <tr>
-        <td ><input type="checkbox" name="issue_statuses[<%=s.id%>]" /></td>
+        <td ><%= check_box_tag("issue_statuses[#{s[:id]}","1",@project_statuses.has_key?(s[:id])) %></td>
         <td ><%= s.name %></td>
       </tr>
       <% end %>
