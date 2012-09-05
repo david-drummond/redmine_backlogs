@@ -69,7 +69,6 @@ Redmine::Plugin.register :redmine_backlogs do
                                       }
     permission :view_master_backlog,  { 
                                         :rb_master_backlogs  => [:show, :menu],
-                                        :rb_issue_statuses   => [:edit, :update],
                                         :rb_sprints          => [:index, :show, :download],
                                         :rb_hooks_render     => [:view_issues_sidebar],
                                         :rb_wikis            => :show,
@@ -122,7 +121,10 @@ Redmine::Plugin.register :redmine_backlogs do
     # Task permissions
     # :show_tasks and :list_tasks are implicit in :view_sprints
     permission :create_tasks,           { :rb_tasks => [:new, :create]  }
-    permission :update_tasks,           { :rb_tasks => [:edit, :update] }
+    permission :update_tasks,           {
+                                          :rb_tasks => [:edit, :update],
+                                          :rb_issue_statuses   => [:edit, :update],
+                                        }
     
     permission :update_remaining_hours, { :rb_tasks => [:edit, :update] }
 

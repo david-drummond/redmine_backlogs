@@ -8,20 +8,29 @@
   the main backlogs configuration page.
 </p>
 
-<table>
-  <thead>
-    <tr>
-      <th></th>
-      <th>Issue status name</th>
-    </tr>
-  </thead>
-  <tbody>
-    <% @issue_statuses.each do |s| %>
-    <tr>
-      <td ><input type="checkbox" /></td>
-      <td ><%= s.name%></td>
-    </tr>
-    <% end %>
-  </tbody>
-</table>
+<!--
+TODO:
+method="post" clears my login session for some reason.
+Stupid magic happening somewhere.
+-- danb, Wed Sep  5 15:05:29 EST 2012
+-->
+<form action="<%= url_for(:controller => 'rb_issue_statuses', :action => 'update') %>" method="get" >
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Issue status name</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @issue_statuses.each do |s| %>
+      <tr>
+        <td ><input type="checkbox" name="issue_statuses[<%=s.id%>]" /></td>
+        <td ><%= s.name %></td>
+      </tr>
+      <% end %>
+    </tbody>
+  </table>
+  <input type="submit" value="Submit" />
+</form>
 
