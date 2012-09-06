@@ -11,7 +11,7 @@ class RbTaskboardsController < RbApplicationController
 
     ## Determine status columns to show.
     tracker = RbSprintTaskTracker.instance
-    statuses = tracker.issue_statuses
+    statuses = RbProjectTaskStatus.issue_statuses_for(@project)
 
     # disable columns by default
     if User.current.admin?

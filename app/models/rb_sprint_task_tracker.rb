@@ -30,29 +30,6 @@ class RbSprintTaskTracker < Tracker
     roles = ::Role.all.delete_if{|r| r.builtin? }
   end
 
-  # Fetch the "used" issue statuses for this tracker.
-  #
-  # If project is not specified, then the default sprint task statuses
-  # will be returned. If project is specified, then return the
-  # statuses used for this project. If the project doesn't override
-  # the default statuses, then these will be returned.
-
-  def issue_statuses project=nil
-
-    # Grab default ids.
-    if project.nil? then
-      defaults = Backlogs.setting[:default_task_statuses]
-      ids = defaults.keys.map{|k| k.to_i }
-      IssueStatus.find(ids)
-
-    # Grab project specific status.
-    else
-      # TODO
-      []
-    end
-
-  end
-
   # Insert missing workflows.
   #
   # Returns array of saved Workflow objects.
@@ -90,13 +67,10 @@ class RbSprintTaskTracker < Tracker
   # - A project has overridden the defaults and has
   #   specified its own issue statuses.
   # This is done for all roles at the moment.
-  # 
-  # TODO: check for per-project statuses.
 
   def required_workflows
     result = []
-    # Check for missing default task statuses:
-    ids = self.issue_statuses.map{|i|i.id}
+    ids = RbProjectTaskStatus.all_issue_status_ids.keys
     ids.combination(2).each{|comb2|
       result.concat(workflows_for(*comb2))
     }
