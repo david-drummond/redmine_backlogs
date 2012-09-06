@@ -3,11 +3,7 @@
 #
 # By default, projects start with none and will use the default
 # task statuses that are specified in the main Backlogs pluging
-# configuration page.
-#
-# Note: RbSprintTaskTracker will need to be told when a project
-# changes its preferred task statuses here so that it can update
-# itself.
+# configuration page.  See self.default_issue_status_ids.
 
 class RbProjectTaskStatus < ActiveRecord::Base
   unloadable
@@ -37,7 +33,7 @@ class RbProjectTaskStatus < ActiveRecord::Base
   # TODO: use observer?
 
   def after_save
-    RbSprintTaskTracker.instance.synchronize!
+    RbTaskWorkflow.synchronize!
   end
 
   # Fetch a hash of default issue status ids that projects will use if
