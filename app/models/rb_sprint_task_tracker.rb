@@ -24,9 +24,9 @@ class RbSprintTaskTracker < Tracker
 
   # Fetch all roles that can have workflows for sprint task statuses.
   #
-  # TODO: we just fetch all non-builtins atm; we don't really
-  # worry about what non-builtins can or can't do at this point;
-  # we just do a blanket update.
+  # TODO: we just fetch all non-builtins atm; 
+  # we just assume all non-builtins have equal rights in managing
+  # the workflow.
 
   def roles
     roles = ::Role.all.delete_if{|r| r.builtin? }
