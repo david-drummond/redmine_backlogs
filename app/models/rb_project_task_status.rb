@@ -1,9 +1,9 @@
 # Model to represent a project's preferred sprint task statuses
 # for use on the taskboard.
 #
-# By default, projects start with none and will use the default
-# task statuses that are specified in the main Backlogs pluging
-# configuration page.  See self.default_issue_status_ids.
+# By default, projects start with none and will use the default task
+# statuses that are specified in the main Backlogs plugin
+# configuration page. See self.default_issue_status_ids.
 
 class RbProjectTaskStatus < ActiveRecord::Base
   unloadable

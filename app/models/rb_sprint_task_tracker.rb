@@ -1,5 +1,3 @@
-require 'set'
-
 # Tracker used for sprint tasks and for the taskboard.
 #
 # It represents the sprint task tracker used in Backlogs.

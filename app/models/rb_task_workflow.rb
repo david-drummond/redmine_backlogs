@@ -1,3 +1,5 @@
+require 'set'
+
 # This subclass of Workflow represents workflows for
 # RbSprintTaskTracker.
 # 
