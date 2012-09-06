@@ -1,3 +1,5 @@
+require 'set'
+
 # Tracker used for sprint tasks and for the taskboard.
 #
 # This class subclasses Tracker and adds some functionality
@@ -30,22 +32,77 @@ class RbSprintTaskTracker < Tracker
     roles = ::Role.all.delete_if{|r| r.builtin? }
   end
 
-  # Insert missing workflows.
+  # Insert missing workflows, remove unused.
   #
   # Returns array of saved Workflow objects.
   #
   # See missing_workflows for what determines a missing workflow.
-  # 
-  # TODO: delete workflows that should no longer apply (if they
-  # are not included in the defaults or in any projects that override
-  # the defaults)?
+  # Unused workflows are also destroyed.
 
-  def update_workflows
-    missing_workflows.map{|w|
+  def synchronize!
+    self.unused_workflows.each{|w|
+      w = Workflow.find(:first,:conditions => w[0])
+      w.destroy if w
+    }
+    self.missing_workflows.map{|w|
       w = Workflow.new(w[0])
       w.save!
       w
     }
+  end
+
+  # Find workflows that exist but which are no longer used.
+  #
+  # Returns in the same format as workflows_for.
+  #
+  # TODO: eek, heavy, long, complicated.
+
+  def unused_workflows
+
+    # Create a unique id (wid) for workflows (without using the
+    # database id).
+    hashw = lambda {|tracker_id,role_id,old_id,new_id|
+      "%s-%s-%s-%s" % [tracker_id,role_id,old_id,new_id]
+    }
+
+    # Turn a wid into hash.
+    unhashw = lambda {|wid|
+      arr = wid.split('-')
+      {
+        :tracker_id => arr[0].to_i,
+        :role_id => arr[1].to_i,
+        :old_status_id => arr[2].to_i,
+        :new_status_id => arr[3].to_i
+      }
+    }
+
+    # Get all existing workflows for this tracker:
+    all = Workflow.find(:all, :conditions => { :tracker_id => self.id })
+    all = all.map {|w|
+      hashw.call(w.tracker_id,
+                 w.role_id,
+                 w.old_status_id,
+                 w.new_status_id)
+    }
+
+    # Get all required workflows for this tracker:
+    required = self.required_workflows.map {|w|
+      hashw.call(
+        w[0][:tracker_id],
+        w[0][:role_id],
+        w[0][:old_status_id],
+        w[0][:new_status_id]
+      )
+    }
+
+    # Find unused:
+    sall = Set.new(all)
+    sreq = Set.new(required)
+    sdelete = sall-sreq
+    sdelete.map {|wid|
+      [unhashw.call(wid),true]
+    }.compact
+    
   end
 
   # Return array of any workflows that should be added to the tracker.

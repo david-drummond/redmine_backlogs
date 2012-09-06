@@ -37,7 +37,7 @@ class RbProjectTaskStatus < ActiveRecord::Base
   # TODO: use observer?
 
   def after_save
-    RbSprintTaskTracker.instance.update_workflows
+    RbSprintTaskTracker.instance.synchronize!
   end
 
   # Fetch a hash of default issue status ids that projects will use if
