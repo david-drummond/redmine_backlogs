@@ -26,10 +26,17 @@ class RbIssueStatusesController < RbApplicationController
     end
     if issue_status_ids.nil? then
       ids = []
+      flash[:notice] = "Project no longer specifies issue statuses.  Default issue statuses will be used."
     else
       ids = issue_status_ids.keys.map{|k|k.to_i}
+      flash[:notice] = "Set sprint task issue statuses for this project. These will be used instead of the defaults."
     end
-    RbProjectTaskStatus.update!(@project.id,ids)
+    begin
+      RbProjectTaskStatus.update!(@project.id,ids)
+    rescue => e
+      flash.delete(:notice)
+      flash[:error] = "There was an error updating sprint task issue statuses for this project: #{e.message}"
+    end
 
     setup @project
     render :action => 'edit'
@@ -50,6 +57,7 @@ class RbIssueStatusesController < RbApplicationController
     end
     @title = "Issue statuses for #{@project.name}"
     @issue_statuses = IssueStatus.find(:all)
+
     # Create a lookup of issue statuses for a given project.
     @project_statuses = RbProjectTaskStatus.find(
       :all,
@@ -58,6 +66,7 @@ class RbIssueStatusesController < RbApplicationController
       s[v[:issue_status_id]] = v
       s
     }
+
   end
 
 end
