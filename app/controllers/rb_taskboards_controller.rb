@@ -9,7 +9,7 @@ class RbTaskboardsController < RbApplicationController
 
     @settings = Backlogs.settings
 
-    ## Determine status columns to show.
+    # Determine status columns to show.
     tracker = RbSprintTaskTracker.instance
     statuses = RbProjectTaskStatus.issue_statuses_for(@project)
 

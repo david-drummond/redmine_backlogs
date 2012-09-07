@@ -1,5 +1,6 @@
-# Model to represent a project's preferred sprint task statuses
-# for use on the taskboard.
+# Model to represent a project's preferred sprint task statuses for
+# use on the taskboard as well the default task statuses if a project
+# doesn't have any.
 #
 # By default, projects start with none and will use the default task
 # statuses that are specified in the main Backlogs plugin
@@ -18,12 +19,15 @@ class RbProjectTaskStatus < ActiveRecord::Base
   # default_issue_status_ids.
 
   def self.update! project_id, issue_status_ids=[]
+    @@no_synchronize = true
     self.delete_all({:project_id => project_id})
     unless issue_status_ids.empty? then
       issue_status_ids.each {|i|
         self.create!(:project_id => project_id,:issue_status_id => i)
       }
     end
+    RbTaskWorkflow.synchronize!
+    @@no_synchronize = false
   end
 
   # Callback for updating workflows for RbSprintTaskTracker.
@@ -33,7 +37,10 @@ class RbProjectTaskStatus < ActiveRecord::Base
   # TODO: use observer?
 
   def after_save
-    RbTaskWorkflow.synchronize!
+    unless @@no_synchronize then
+      Rails.logger.info("[RbProjectTaskStatus#after_save] synchronize called")
+      RbTaskWorkflow.synchronize!
+    end
   end
 
   # Fetch a hash of default issue status ids that projects will use if

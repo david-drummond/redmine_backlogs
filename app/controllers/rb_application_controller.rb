@@ -2,7 +2,7 @@
 class RbApplicationController < ApplicationController
   unloadable
 
-  before_filter :load_project, :authorize, :check_if_plugin_is_configured
+  before_filter :load_project, :authorize, :check_if_plugin_is_configured, :synchronize_task_workflows
 
   private
 
@@ -38,4 +38,21 @@ class RbApplicationController < ApplicationController
   def load_release
     @release = RbRelease.find(params[:release_id])
   end
+
+  # Synchronize workflows when default task statuses change.
+  #
+  # We already synchronize! in RbProjectTaskStatus#after_save for
+  # per-project task statuses. Here we look for a flag set in
+  # app/views/backlogs/_settings.html.erb which tells us if a user
+  # has changed the default task statuses.
+
+  def synchronize_task_workflows
+    key = 'default_task_statuses_changed'
+    if Backlogs.setting[key]=='true' then
+      Rails.logger.info("[synchronize_task_workflows] defaults have changed, synchronizing!")
+      RbTaskWorkflow.synchronize!
+      Backlogs.setting[key]=false
+    end
+  end
+
 end

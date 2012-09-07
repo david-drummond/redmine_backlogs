@@ -113,6 +113,7 @@
     </thead>
     <tbody>
       <% statuses = Backlogs.setting[:default_task_statuses] || {} %>
+      <%= hidden_field_tag("settings[default_task_statuses_changed]",true) %>
       <% IssueStatus.all.each do |s| %>
       <% checked = statuses.has_key?(s.id.to_s) %>
       <tr>

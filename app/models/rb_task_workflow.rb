@@ -2,17 +2,11 @@ require 'set'
 
 # This subclass of Workflow represents workflows for
 # RbSprintTaskTracker.
-# 
-# It adds some functionality to allow us to vary the columns that show
-# on the taskboard depending on what the default sprint task issue
-# statuses are as well as any overridden issue statuses by any
-# projects.
-# 
-# See RbSprintTaskTracker; RbSprintTaskTracker.id determines which
-# workflows this class deals with.
-# 
-# See RbProjectTaskStatus which handles default and
-# per-project issue statuses.
+#
+# It's RbTaskWorkflow's job to ensure we have the right number of
+# workflows to support 1) the default task statuses and 2) per-project
+# task statuses that override the defaults in 1). See
+# RbProjectTaskStatus model.
 
 class RbTaskWorkflow < Workflow
 
@@ -132,8 +126,8 @@ class RbTaskWorkflow < Workflow
     result
   end
 
-  # Determine all possible workflows for 2 issue statuses (for all
-  # roles) and if they need to be inserted into the database.
+  # Determine all possible workflows for 2 issue statuses for all
+  # roles for a given tracker_id.
   # 
   # Returns:
   #   [wflow1,wflow2,...]
