@@ -442,3 +442,39 @@ See RB.Taskboard.initialize()
 .task-table td:last-child {
   border-right:dotted #666 1px;
 }
+
+
+/***** Flash & error messages ****/
+/* Taken from redmine application.css . */
+
+#errorExplanation, div.flash, .nodata, .warning, .conflict {
+    padding: 4px 4px 4px 30px;
+    margin-bottom: 12px;
+    font-size: 1.1em;
+    border: 2px solid;
+}
+
+div.flash {margin-top: 8px;}
+
+div.flash.error, #errorExplanation {
+    background: url(/images/exclamation.png) 8px 50% no-repeat;
+    background-color: #ffe3e3;
+    border-color: #dd0000;
+    color: #880000;
+}
+
+div.flash.notice {
+    background: url(/images/true.png) 8px 5px no-repeat;
+    background-color: #dfffdf;
+    border-color: #9fcf9f;
+    color: #005f00;
+}
+
+div.flash.warning, .conflict {
+    background: url(/images/warning.png) 8px 5px no-repeat;
+    background-color: #FFEBC1;
+    border-color: #FDBF3B;
+    color: #A6750C;
+    text-align: left;
+}
+

@@ -101,6 +101,7 @@
 
 <%- content_for :main do %>
 <span id="userid" style="visibility:hidden;"><%= User.current.id %></span>
+<%= render_flash_messages %>
 <div id="taskboard">
 
 
@@ -164,19 +165,19 @@
   </table>
 
   <% unless @tasks_not_shown.empty? then %>
+  <div style="max-width:60em;" >
   <h2>Tasks not shown</h2>
   <p>These are tasks that have status that is not currently shown on
   the taskboard.  You can change the status of the task by checking
   it below and then selecting the new status from the dropdown.</p>
   <%=
      form_tag(
-       '/',
-       {:onSubmit => 'alert("Not implemented yet.");return false;' }
+       url_for(:controller => 'rb_taskboards', :action => 'update', :sprint_id => @sprint.id)
      )
   %>
   <label>Move checked tasks in table below to status:</label>
   <%= select_tag(
-        "tasks_not_shown",
+        "issue_status_id",
         options_from_collection_for_select(@statuses,:id,:name))
   %>
   <input type="submit" value="Update" />
@@ -211,6 +212,7 @@
     </tbody>
   </table>
   </form>
+  </div>
   <% end %>
 
 </div>

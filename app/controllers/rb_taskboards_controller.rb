@@ -70,4 +70,29 @@ class RbTaskboardsController < RbApplicationController
     end
   end
 
+  def update
+    unless params[:tasks].kind_of?(Hash) then
+      flash[:error] = "Invalid parameters to update function. Did you select at least one task to change the status."
+      redirect_to :action => 'show' , :sprint_id => @sprint.id
+      return
+    end
+    issue_status_id = params[:issue_status_id].to_i
+    unless issue_status_id > 0 then
+      flash[:error] = "Invalid parameters to update function: invalide issue_status_id."
+      redirect_to :action => 'show' , :sprint_id => @sprint.id
+      return
+    end
+    issue_status = IssueStatus.find(issue_status_id)
+    unless issue_status then
+      flash[:error] = "Can't find issue status with issue_status_id #{issue_status_id}."
+      redirect_to :action => 'show' , :sprint_id => @sprint.id
+      return
+    end
+    task_ids = params[:tasks].keys.map{|k|k.to_i}
+    tasks = RbTask.find(task_ids)
+    tasks.each{|task| task.status_id = issue_status_id; task.save! }
+    flash[:notice] = "Changed status of checked tasks to #{issue_status.name}."
+    redirect_to :action => 'show' , :sprint_id => @sprint.id
+  end
+
 end

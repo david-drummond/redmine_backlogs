@@ -73,6 +73,8 @@ ActionController::Routing::Routes.draw do |map|
                  :to => 'rb_issue_statuses#edit'
     rb_match rb, 'issue_statuses/update/:project_id',
                  :to => 'rb_issue_statuses#update'
+    rb_match rb, 'taskboards/update/:sprint_id',
+                 :to => 'rb_taskboards#update'
 
     rb_match rb, 'impediment/create',
                  :to => 'rb_impediments#create'
@@ -173,6 +175,8 @@ else
   rb_match rb, 'issue_statuses/edit/:project_id', :to => 'rb_issue_statuses#edit'
   rb_match rb, 'issue_statuses/update/:project_id',
               :to => 'rb_issue_statuses#update'
+  rb_match rb, 'taskboards/update/:sprint_id',
+              :to => 'rb_taskboards#update'
 
   rb_match rb, 'impediment/create', :to => 'rb_impediments#create'
   rb_match rb, 'impediment/update/:id', :to => 'rb_impediments#update'

@@ -29,7 +29,7 @@ class RbIssueStatusesController < RbApplicationController
       flash[:notice] = "Project no longer specifies issue statuses.  Default issue statuses will be used."
     else
       ids = issue_status_ids.keys.map{|k|k.to_i}
-      flash[:notice] = "Set sprint task issue statuses for this project. These will be used instead of the defaults."
+      flash[:notice] = "Task statuses have been set for this project. These will be used instead of the defaults."
     end
     begin
       RbProjectTaskStatus.update!(@project.id,ids)
