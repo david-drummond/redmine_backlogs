@@ -39,6 +39,22 @@ class RbTaskboardsController < RbApplicationController
       @statuses = statuses.select{|s| enabled[s.id]}
     end
 
+    # Find tasks that don't have a status in @statuses.
+    #
+    # This can happen if the preferred task statuses for the project
+    # have changed or if the default task statuses have changed and
+    # the project is using the defaults.
+
+    @status_lookup = @statuses.inject({}){ |h,status|
+      h[status.id] = true; h
+    }
+    @tasks_not_shown = @sprint.stories.inject([]){ |arr,story|
+      arr = arr.concat(story.descendants.select{ |task|
+        !@status_lookup.has_key?(task.status_id)
+      })
+      arr
+    }
+
     if @sprint.stories.size == 0
       @last_updated = nil
     else

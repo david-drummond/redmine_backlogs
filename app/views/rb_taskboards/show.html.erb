@@ -162,6 +162,19 @@
     </tr>
     <%- end %>
   </table>
+  <% unless @tasks_not_shown.empty? then %>
+  <h2>Tasks not shown</h2>
+  <% @tasks_not_shown.each do |task| %>
+    <div class="task" >
+      <div class="subject" >
+        <%= task.subject %>
+      </div>
+      <div class="description" >
+        <%= task.description %>
+      </div>
+    </div>
+  <% end %>
+  <% end %>
 </div>
 <%- end %>
 
