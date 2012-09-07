@@ -6,7 +6,22 @@ class RbIssueStatusesController < RbApplicationController
   # Form for editing per-project sprint task statuses.
 
   def edit
-    setup
+    @project = Project.find_by_name(params[:project_id])
+    unless @project then
+      render_error "No project given."
+    end
+    @title = "Issue statuses for #{@project.name}"
+    @issue_statuses = IssueStatus.find(:all)
+
+    # Create a lookup of issue statuses for a given project.
+    @project_statuses = RbProjectTaskStatus.find(
+      :all,
+      :conditions => {:project_id => @project.id})
+    @project_statuses = @project_statuses.inject({}){|s,v|
+      s[v[:issue_status_id]] = v
+      s
+    }
+
   end
 
   # Update per-project sprint task statuses.
@@ -37,36 +52,7 @@ class RbIssueStatusesController < RbApplicationController
       flash.delete(:notice)
       flash[:error] = "There was an error updating sprint task issue statuses for this project: #{e.message}"
     end
-
-    setup @project
-    render :action => 'edit'
-  end
-
-  private
-
-  # For use with edit and update.
-
-  def setup project=nil
-    if project.nil? then
-      @project = Project.find_by_name(params[:project_id])
-    else
-      @project = project
-    end
-    unless @project then
-      render_error "No project given."
-    end
-    @title = "Issue statuses for #{@project.name}"
-    @issue_statuses = IssueStatus.find(:all)
-
-    # Create a lookup of issue statuses for a given project.
-    @project_statuses = RbProjectTaskStatus.find(
-      :all,
-      :conditions => {:project_id => @project.id})
-    @project_statuses = @project_statuses.inject({}){|s,v|
-      s[v[:issue_status_id]] = v
-      s
-    }
-
+    redirect_to :action => 'edit' , :project_id => params[:project_id]
   end
 
 end
