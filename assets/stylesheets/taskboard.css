@@ -412,3 +412,29 @@ See RB.Taskboard.initialize()
 #ui-datepicker-div{
   display: none;
 }
+
+/* 
+  Table for showing tasks in a tabular form.
+*/
+.task-table {
+  font-size:70%;
+}
+.task-table th {
+  font-weight:bold;
+}
+.task-table td ,
+.task-table th {
+  padding-left:0.2em;
+  padding-right:0.2em;
+}
+
+.task-table td.description {
+  width:80%;
+}
+.task-table td {
+  border:solid #666 1px;
+  border-right:none;
+}
+.task-table td:last-child {
+  border-right:solid #666 1px;
+}

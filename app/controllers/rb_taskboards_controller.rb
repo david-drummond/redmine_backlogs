@@ -43,7 +43,9 @@ class RbTaskboardsController < RbApplicationController
     #
     # This can happen if the preferred task statuses for the project
     # have changed or if the default task statuses have changed and
-    # the project is using the defaults.
+    # the project is using the defaults. In either case there may be
+    # tasks that have an issue status that is no longer used by the
+    # project.
 
     @status_lookup = @statuses.inject({}){ |h,status|
       h[status.id] = true; h

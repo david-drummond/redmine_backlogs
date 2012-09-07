@@ -162,19 +162,39 @@
     </tr>
     <%- end %>
   </table>
+
   <% unless @tasks_not_shown.empty? then %>
   <h2>Tasks not shown</h2>
-  <% @tasks_not_shown.each do |task| %>
-    <div class="task" >
-      <div class="subject" >
+  <table class="task-table" cellspacing="0" >
+    <thead>
+      <tr>
+        <th>Subject</th>
+        <th>Description</th>
+        <th>Status</th>
+        <th>Check</th>
+      </tr>
+    </thead>
+    <tbody>
+    <% @tasks_not_shown.each do |task| %>
+      <tr>
+      <td>
         <%= task.subject %>
-      </div>
-      <div class="description" >
+      </td>
+      <td class="description" >
         <%= task.description %>
-      </div>
-    </div>
+      </td>
+      <td>
+        <%= task.status.name %>
+      </td>
+      <td>
+        <%= check_box_tag "name","1",false %>
+      </td>
+      </tr>
+    <% end %>
+    </tbody>
+  </table>
   <% end %>
-  <% end %>
+
 </div>
 <%- end %>
 
