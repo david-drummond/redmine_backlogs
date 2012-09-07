@@ -417,7 +417,7 @@ See RB.Taskboard.initialize()
   Table for showing tasks in a tabular form.
 */
 .task-table {
-  font-size:70%;
+  font-size:90%;
 }
 .task-table th {
   font-weight:bold;
@@ -430,11 +430,15 @@ See RB.Taskboard.initialize()
 
 .task-table td.description {
   width:80%;
+  font-size:80%;
+}
+.task-table td.status {
+  font-weight:bold;
 }
 .task-table td {
-  border:solid #666 1px;
+  border:dotted #666 1px;
   border-right:none;
 }
 .task-table td:last-child {
-  border-right:solid #666 1px;
+  border-right:dotted #666 1px;
 }

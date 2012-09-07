@@ -165,6 +165,23 @@
 
   <% unless @tasks_not_shown.empty? then %>
   <h2>Tasks not shown</h2>
+  <p>These are tasks that have status that is not currently shown on
+  the taskboard.  You can change the status of the task by checking
+  it below and then selecting the new status from the dropdown.</p>
+  <%=
+     form_tag(
+       '/',
+       {:onSubmit => 'alert("Not implemented yet.");return false;' }
+     )
+  %>
+  <label>Move checked tasks in table below to status:</label>
+  <%= select_tag(
+        "tasks_not_shown",
+        options_from_collection_for_select(@statuses,:id,:name))
+  %>
+  <input type="submit" value="Update" />
+  <br/>
+  <br/>
   <table class="task-table" cellspacing="0" >
     <thead>
       <tr>
@@ -183,16 +200,17 @@
       <td class="description" >
         <%= task.description %>
       </td>
-      <td>
+      <td class="status" >
         <%= task.status.name %>
       </td>
       <td>
-        <%= check_box_tag "name","1",false %>
+        <%= check_box_tag "tasks[#{task.id}]","1",false %>
       </td>
       </tr>
     <% end %>
     </tbody>
   </table>
+  </form>
   <% end %>
 
 </div>
