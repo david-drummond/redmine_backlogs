@@ -91,7 +91,7 @@ class RbProjectTaskStatus < ActiveRecord::Base
     if ids.empty? then
       ids = self.default_issue_status_ids
     end
-    IssueStatus.find(ids.keys)
+    IssueStatus.find(ids.keys,:order => 'position')
   end
 
 end
