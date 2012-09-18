@@ -6,7 +6,7 @@ class RbIssueStatusesController < RbApplicationController
   # Form for editing per-project sprint task statuses.
 
   def edit
-    @project = Project.find_by_name(params[:project_id])
+    @project = Project.find_by_identifier(params[:project_id])
     unless @project then
       render_error "No project given."
     end
