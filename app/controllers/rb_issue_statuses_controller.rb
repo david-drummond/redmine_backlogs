@@ -11,7 +11,7 @@ class RbIssueStatusesController < RbApplicationController
       render_error "No project given."
     end
     @title = "Issue statuses for #{@project.name}"
-    @issue_statuses = IssueStatus.find(:all)
+    @issue_statuses = IssueStatus.find(:all,:order => 'position')
 
     # Create a lookup of issue statuses for a given project.
     @project_statuses = RbProjectTaskStatus.find(
