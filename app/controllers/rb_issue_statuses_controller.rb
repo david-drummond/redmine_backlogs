@@ -8,7 +8,8 @@ class RbIssueStatusesController < RbApplicationController
   def edit
     @project = Project.find_by_identifier(params[:project_id])
     unless @project then
-      render_error "No project given."
+      render_to_string "Bad project identifier in url."
+      return
     end
     @title = "Issue statuses for #{@project.name}"
     @issue_statuses = IssueStatus.find(:all,:order => 'position')
@@ -33,11 +34,13 @@ class RbIssueStatusesController < RbApplicationController
     issue_status_ids = params[:issue_statuses]
     project_name = params[:project_id]
     unless project_name then
-      render_error "No project id given."
+      render_to_string "Bad project identifier in url."
+      return
     end
-    @project = Project.find_by_name(params[:project_id])
+    @project = Project.find_by_identifier(params[:project_id])
     unless @project then
-      render_error "No project given."
+      render_to_string "Bad project identifier in url."
+      return
     end
     if issue_status_ids.nil? then
       ids = []
