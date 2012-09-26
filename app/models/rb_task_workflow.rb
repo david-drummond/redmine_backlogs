@@ -147,7 +147,6 @@ class RbTaskWorkflow < Workflow
 
     status_ids.permutation(2).inject([]){|arr,comb2|
       arr.concat(gen.call(comb2[0],comb2[1]))
-      arr
     }
 
   end
