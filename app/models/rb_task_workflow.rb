@@ -72,7 +72,7 @@ class RbTaskWorkflow < Workflow
 
   # Find workflows that exist but which are no longer used.
   #
-  # Returns in the same format as workflows_for.
+  # Returns in the same format as required_workflows.
 
   def self.unused_workflows
     all = self.all.map{|w|w.wid}
@@ -88,7 +88,7 @@ class RbTaskWorkflow < Workflow
 
   # Return array of any workflows that should be added to the tracker.
   #
-  # Returns in the same format as workflows_for.
+  # Returns in the same format as required_workflows.
 
   def self.missing_workflows
     all = self.all.map{|w|w.wid}
@@ -105,7 +105,11 @@ class RbTaskWorkflow < Workflow
   # Returns all the workflows we *should* have for
   # RbSprintTaskTracker.
   #
-  # Returns in the same format as workflows_for.
+  # Returns:
+  #   [wflow1,wflow2,...]
+  # where
+  #   wflowN is {:tracker_id => ...,...}
+  # which is the same format as self.wid_unpack .
   #
   # We require workflows for:
   # - The default tracker statuses (which get altered
@@ -116,29 +120,13 @@ class RbTaskWorkflow < Workflow
   # This is done for all roles at the moment.
 
   def self.required_workflows
-    result = []
+
     ids = RbProjectTaskStatus.all_issue_status_ids.keys
     roles = RbSprintTaskTracker.roles
     role_ids = roles.map{|r|r.id}
     tracker_id = RbSprintTaskTracker.id
-    ids.combination(2).each{|comb2|
-      result.concat(self.workflows_for(tracker_id,role_ids,comb2[0],comb2[1]))
-    }
-    result
-  end
 
-  # Determine all possible workflows for 2 issue statuses for all
-  # roles for a given tracker_id.
-  # 
-  # Returns:
-  #   [wflow1,wflow2,...]
-  # where
-  #   wflowN is {:tracker_id => ...,...}
-  # which is the same format as self.wid_unpack .
-
-  def self.workflows_for tracker_id,role_ids,status_id1,status_id2
-    workflows = []
-    add = proc{|status_id1,status_id2|
+    gen = proc{|status_id1,status_id2|
       role_ids.map {|role_id|
         attr = {
           :tracker_id => tracker_id,
@@ -149,9 +137,12 @@ class RbTaskWorkflow < Workflow
         }
       }
     }
-    workflows.concat(add.call(status_id1,status_id2))
-    workflows.concat(add.call(status_id2,status_id1))
-    workflows
+
+    ids.permutation(2).inject([]){|arr,comb2|
+      arr.concat(gen.call(comb2[0],comb2[1]))
+      arr
+    }
+
   end
 
 end
