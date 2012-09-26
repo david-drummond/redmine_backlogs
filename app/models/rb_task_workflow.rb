@@ -120,11 +120,18 @@ class RbTaskWorkflow < Workflow
   # This is done for all roles at the moment.
 
   def self.required_workflows
-
     ids = RbProjectTaskStatus.all_issue_status_ids.keys
     roles = RbSprintTaskTracker.roles
     role_ids = roles.map{|r|r.id}
     tracker_id = RbSprintTaskTracker.id
+    self.permute_workflows(tracker_id,ids,role_ids)
+  end
+
+  # Generate all combinations of workflows.
+  #
+  # See self.required_workflows.
+
+  def self.permute_workflows tracker_id,status_ids,role_ids
 
     gen = proc{|status_id1,status_id2|
       role_ids.map {|role_id|
@@ -138,7 +145,7 @@ class RbTaskWorkflow < Workflow
       }
     }
 
-    ids.permutation(2).inject([]){|arr,comb2|
+    status_ids.permutation(2).inject([]){|arr,comb2|
       arr.concat(gen.call(comb2[0],comb2[1]))
       arr
     }
