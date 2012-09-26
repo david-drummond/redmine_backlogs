@@ -119,9 +119,10 @@ class RbTaskWorkflow < Workflow
     result = []
     ids = RbProjectTaskStatus.all_issue_status_ids.keys
     roles = RbSprintTaskTracker.roles
+    role_ids = roles.map{|r|r.id}
     tracker_id = RbSprintTaskTracker.id
     ids.combination(2).each{|comb2|
-      result.concat(self.workflows_for(tracker_id,roles,comb2[0],comb2[1]))
+      result.concat(self.workflows_for(tracker_id,role_ids,comb2[0],comb2[1]))
     }
     result
   end
@@ -135,16 +136,16 @@ class RbTaskWorkflow < Workflow
   #   wflowN is {:tracker_id => ...,...}
   # which is the same format as self.wid_unpack .
 
-  def self.workflows_for tracker_id,roles,status_id1,status_id2
+  def self.workflows_for tracker_id,role_ids,status_id1,status_id2
     workflows = []
     add = proc{|status_id1,status_id2|
-      roles.map {|role|
+      role_ids.map {|role_id|
         attr = {
           :tracker_id => tracker_id,
           :old_status_id => status_id1,
           :new_status_id => status_id2,
-          :role_id => role.id,
-          :wid => self.wid(tracker_id,role.id,status_id1,status_id2)
+          :role_id => role_id,
+          :wid => self.wid(tracker_id,role_id,status_id1,status_id2)
         }
       }
     }
