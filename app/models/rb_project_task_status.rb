@@ -27,6 +27,7 @@ class RbProjectTaskStatus < ActiveRecord::Base
       }
     end
     RbTaskWorkflow.synchronize!
+  ensure
     @@no_synchronize = false
   end
 
