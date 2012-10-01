@@ -72,7 +72,7 @@ class RbTaskWorkflow < Workflow
 
   # Find workflows that exist but which are no longer used.
   #
-  # Returns in the same format as required_workflows.
+  # Returns array of hashes in 'wid_unpack' format.
 
   def self.unused_workflows
     all = self.all.map{|w|w.wid}
@@ -88,7 +88,7 @@ class RbTaskWorkflow < Workflow
 
   # Return array of any workflows that should be added to the tracker.
   #
-  # Returns in the same format as required_workflows.
+  # Returns array of hashes in 'wid_unpack' format.
 
   def self.missing_workflows
     all = self.all.map{|w|w.wid}
@@ -105,11 +105,8 @@ class RbTaskWorkflow < Workflow
   # Returns all the workflows we *should* have for
   # RbSprintTaskTracker.
   #
-  # Returns:
-  #   [wflow1,wflow2,...]
-  # where
-  #   wflowN is {:tracker_id => ...,...}
-  # which is the same format as self.wid_unpack .
+  # Returns in same format as self.permute_workflows (including the
+  # additional wid key).
   #
   # We require workflows for:
   # - The default tracker statuses (which get altered
@@ -127,9 +124,11 @@ class RbTaskWorkflow < Workflow
     self.permute_workflows(tracker_id,ids,role_ids)
   end
 
-  # Generate all combinations of workflows.
+  # Generate all combinations of workflows for a given tracker id,
+  # role ids and an array of possible states.
   #
-  # See self.required_workflows.
+  # Returns array of hashes in 'wid_unpack' format BUT with additional
+  # 'wid' key added.
 
   def self.permute_workflows tracker_id,status_ids,role_ids
 
