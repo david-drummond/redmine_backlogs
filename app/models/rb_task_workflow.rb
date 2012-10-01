@@ -97,7 +97,7 @@ class RbTaskWorkflow < Workflow
     sreq = Set.new(required)
     smissing = sreq-sall
     smissing.map {|wid|
-      RbTaskWorkflow.wid_unpack(wid)
+      self.wid_unpack(wid)
     }.compact
 
   end
