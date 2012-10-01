@@ -50,7 +50,9 @@ class RbProjectTaskStatus < ActiveRecord::Base
   def self.default_issue_status_ids
     hash = {}
     defaults = Backlogs.setting[:default_task_statuses]
-    defaults.keys.each{|k| hash[k.to_i] = true }
+    if defaults.kind_of?(Hash) then
+      defaults.keys.each{|k| hash[k.to_i] = true }
+    end
     hash
   end
 
