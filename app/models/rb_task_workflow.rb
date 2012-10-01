@@ -114,7 +114,7 @@ class RbTaskWorkflow < Workflow
   #   See Backlogs.setting[:default_task_statuses].
   # - A project has overridden the defaults and has
   #   specified its own issue statuses.
-  # This is done for all roles at the moment.
+  # This is done for all roles defined required by RbSprintTaskTracker.
 
   def self.required_workflows
     ids = RbProjectTaskStatus.all_issue_status_ids.keys
