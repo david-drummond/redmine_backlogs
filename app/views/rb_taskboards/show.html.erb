@@ -146,6 +146,9 @@
             <%= link_to story.id, {:controller => 'issues', :action => 'show', :id => story.id}, { :target => "_blank" } %>
           </div>
           <div class="subject"><%= h story.subject %></div>
+          <%- if story.status %>
+            <div class="status"><%= h story.status.name %></div>
+          <%- end %>
           <%- if @project != story.project %>
             <div class="id project">
               <span class="t"><%= h story.project %></span>
