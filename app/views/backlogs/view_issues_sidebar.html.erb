@@ -24,10 +24,8 @@
       :format => 'pdf'
       }) %><br/>
   <% end %>
-<% end %>
-
-<% if Setting.rest_api_enabled? && key %>
-  <a href="<%= url_for({
+  <% if Setting.rest_api_enabled? && key %>
+    <a href="<%= url_for({
         :only_path  => false,
         :protocol   => webcal,
         :controller => :rb_calendars,
@@ -35,9 +33,23 @@
         :project_id => project,
         :format => 'xml',
         :key    => key }) %>"><%= l(:label_webcal) %></a><br>
-<% end %>
+  <% end %>
 
-<% if sprint && sprint.has_burndown? %>
+  <% releases = project.shared_releases 
+  if releases && releases.size > 0 && User.current.allowed_to?(:view_releases, project) %>
+    <h3><%= l(:label_release_plural) %></h3>
+    <% project.shared_releases.each{|r| %>
+      <%= link_to(r, {
+        :controller => 'rb_queries',
+        :action => 'show',
+        :release_id => r.id
+      })
+       %><br/>
+    <% } %>
+  <% end %><%# if releases && %>
+<% end %><%# if project %>
+
+<% if sprint %>
   <h3><%= l(:label_sprint_name, {:name => sprint.name}) %></h3>
   <%= link_to(l(:label_task_board), {
       :controller => 'rb_taskboards',
@@ -46,12 +58,14 @@
       })
   %><br/>
 
+  <% if sprint.has_burndown? %>
   <%= link_to(l(:label_burndown), {
       :controller => 'rb_burndown_charts',
       :action => 'show',
       :sprint_id => sprint.id
       })
   %><br/>
+  <% end %>
 
   <% if BacklogsPrintableCards::CardPageLayout.selected %>
     <%= link_to(l(:label_sprint_cards), {
@@ -66,7 +80,6 @@
     <%= link_to(l(:label_wiki), {
         :controller => 'rb_wikis',
         :action => 'show',
-        :project_id => project.id,
         :sprint_id => sprint.id
         })
     %><br/>
@@ -76,7 +89,7 @@
       :action => 'impediments',
       :sprint_id => sprint.id
       }) %><br/>
-  <% if Backlogs.setting[:show_burndown_in_sidebar] == 'enabled' %>
+  <% if sprint.has_burndown? && Backlogs.setting[:show_burndown_in_sidebar] == 'enabled' %>
     <%= render :partial => "rb_burndown_charts/burndown", :locals => {:sprint => sprint, :mode => :minimal, :style => 'margin-left:0px; margin-top:20px; width:250px; height:192px;' } %>
   <% end %>
 <% end %>

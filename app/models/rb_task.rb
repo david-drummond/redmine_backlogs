@@ -7,6 +7,12 @@ class RbTask < Issue
     RbSprintTaskTracker.id
   end
 
+  # unify api between story and task. FIXME: remove this when merging to tracker-free-tasks
+  # required for RbServerVariablesHelper.workflow_transitions
+  def self.trackers
+    [self.tracker]
+  end
+
   def self.rb_safe_attributes(params)
     if Issue.const_defined? "SAFE_ATTRIBUTES"
       safe_attributes_names = RbTask::SAFE_ATTRIBUTES
@@ -31,6 +37,16 @@ class RbTask < Issue
 
     blocks = params.delete('blocks')
 
+#if we are an impediment and have blocks, set our project_id.
+#if we have multiple blocked tasks, cross-project relations must be enabled, otherwise save-validation will fail. TODO: make this more user friendly by pre-validating here and suggesting to enable cross-project relation support in redmine base setup.
+    if is_impediment and blocks and blocks.strip != ''
+      begin
+        first_blocked_id = blocks.split(/\D+/)[0].to_i
+        attribs['project_id'] = Issue.find_by_id(first_blocked_id).project_id if first_blocked_id
+      rescue
+      end
+    end
+
     task = new(attribs)
     if params['parent_issue_id']
       parent = Issue.find(params['parent_issue_id'])
@@ -38,7 +54,7 @@ class RbTask < Issue
     end
     task.save!
 
-    raise "Block list must be comma-separated list of task IDs" if is_impediment && !task.validate_blocks_list(blocks)
+    raise "Block list must be comma-separated list of task IDs" if is_impediment && !task.validate_blocks_list(blocks) # could we do that before save and integrate cross-project checks?
 
     task.move_before params[:next] unless is_impediment # impediments are not hosted under a single parent, so you can't tree-order them
     task.update_blocked_list blocks.split(/\D+/) if is_impediment
@@ -49,23 +65,17 @@ class RbTask < Issue
 
   # TODO: there's an assumption here that impediments always have the
   # task-tracker as their tracker, and are top-level issues.
-  def self.find_all_updated_since(since, project_id, find_impediments = false)
-    find(:all,
-         :conditions => ["project_id = ? AND updated_on > ? AND tracker_id in (?) and parent_id IS #{ find_impediments ? '' : 'NOT' } NULL", project_id, Time.parse(since), tracker],
-         :order => "updated_on ASC")
-  end
-
-  def self.tasks_for(story_id)
-    tasks = []
-    story = RbStory.find_by_id(story_id)
-    if RbStory.trackers.include?(story.tracker_id)
-      story.descendants.each_with_index {|task, i|
-        task = task.becomes(RbTask)
-        task.rank = i + 1
-        tasks << task
-      }
+  def self.find_all_updated_since(since, project_id, find_impediments = false, sprint_id = nil)
+    #find all updated visible on taskboard - which may span projects.
+    if sprint_id.nil?
+      find(:all,
+           :conditions => ["project_id = ? AND updated_on > ? AND tracker_id in (?) and parent_id IS #{ find_impediments ? '' : 'NOT' } NULL", project_id, Time.parse(since), tracker],
+           :order => "updated_on ASC")
+    else
+      find(:all,
+           :conditions => ["fixed_version_id = ? AND updated_on > ? AND tracker_id in (?) and parent_id IS #{ find_impediments ? '' : 'NOT' } NULL", sprint_id, Time.parse(since), tracker],
+           :order => "updated_on ASC")
     end
-    return tasks
   end
 
   def update_with_relationships(params, is_impediment = false)
@@ -145,40 +155,18 @@ class RbTask < Issue
     end
   end
 
-  def rank=(r)
-    @rank = r
-  end
-
-  def rank
-    s = self.story
-    return nil if !s
-
-    @rank ||= Issue.count( :conditions => ['tracker_id = ? and root_id = ? and lft > ? and lft <= ?', RbTask.tracker, s.root_id, s.lft, self.lft])
-    return @rank
-  end
-
-  def burndown(sprint = nil)
-    return nil unless self.is_task?
+  def burndown(sprint = nil, status=nil)
     sprint ||= self.fixed_version.becomes(RbSprint) if self.fixed_version
     return nil if sprint.nil? || !sprint.has_burndown?
 
-    return Rails.cache.fetch("RbIssue(#{self.id}@#{self.updated_on}).burndown(#{sprint.id}@#{sprint.updated_on}-#{[Date.today, sprint.effective_date].min})") {
-      days = sprint.days(:active)
-
-      earliest_estimate = history(:estimated_hours, days).compact[0]
-
-      series = Backlogs::MergedArray.new
-      series.merge(:hours => history(:remaining_hours, days))
-      series.merge(:sprint => history(:fixed_version_id, days))
-      series.each_with_index{|d, i|
-        if d.sprint != sprint.id
-          d.hours = nil
-        elsif i == 0 && d.hours.to_f == 0 && earliest_estimate.to_f != 0.0
-          # set hours to earliest estimate *within sprint* if first day is not filled out
-          d.hours = earliest_estimate
-        end
-      }
-      series.series(:hours)
+    self.history.filter(sprint, status).collect{|d|
+      if d.nil? || d[:sprint] != sprint.id || d[:tracker] != :task
+        nil
+      elsif ! d[:status_open]
+        0
+      else
+        d[:hours]
+      end
     }
   end
 

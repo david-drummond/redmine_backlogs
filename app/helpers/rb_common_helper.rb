@@ -4,6 +4,8 @@ require 'nokogiri'
 module RbCommonHelper
   unloadable
 
+  include CustomFieldsHelper
+
   def assignee_id_or_empty(story)
     story.new_record? ? "" : story.assigned_to_id
   end
@@ -32,7 +34,7 @@ filter:progid:DXImageTransform.Microsoft.Gradient(Enabled=1,GradientType=0,Start
   end
 
   def breadcrumb_separator
-    "<span class='separator'>&gt;</span>".html_safe
+    "<span class='separator'>&raquo;</span>".html_safe
   end
 
   def description_or_empty(story)
@@ -55,8 +57,20 @@ filter:progid:DXImageTransform.Microsoft.Gradient(Enabled=1,GradientType=0,Start
     item.new_record? ? "" : link_to(text, {:controller => 'versions', :action => "show", :id => item}, {:target => "_blank", :class => "prevent_edit"})
   end
 
+  def release_display_name(release)
+    if @project == release.project
+      release.name
+    else
+      "#{release.project.try(:identifier)}-#{release.name}"
+    end
+  end
+
   def release_link_or_empty(release)
-    release.new_record? ? "" : link_to(release.name, {:controller => "rb_releases", :action => "show", :release_id => release})
+    release.new_record? ? "" : link_to(release_display_name(release), {:controller => "rb_releases", :action => "show", :release_id => release})
+  end
+
+  def release_multiview_link_or_empty(release)
+    release.new_record? ? "" : link_to(release_display_name(release), {:controller => "rb_releases_multiview", :action => "show", :release_multiview_id => release})
   end
 
   def mark_if_closed(story)
@@ -69,6 +83,10 @@ filter:progid:DXImageTransform.Microsoft.Gradient(Enabled=1,GradientType=0,Start
 
   def record_id_or_empty(story)
     story.new_record? ? "" : story.id
+  end
+
+  def release_or_empty(story)
+    story.release_id.nil? ? "" : RbRelease.find(story.release_id).name
   end
 
   def sprint_status_id_or_default(sprint)
@@ -103,10 +121,6 @@ filter:progid:DXImageTransform.Microsoft.Gradient(Enabled=1,GradientType=0,Start
     story.new_record? ? "" : h(story.description).gsub(/&lt;(\/?pre)&gt;/, '<\1>')
   end
 
-  def textile_to_html(textile)
-    textile.nil? ? "" : Redmine::WikiFormatting::Textile::Formatter.new(textile).to_html
-  end
-
   def tracker_id_or_empty(story)
     story.new_record? ? "" : story.tracker_id
   end
@@ -115,16 +129,29 @@ filter:progid:DXImageTransform.Microsoft.Gradient(Enabled=1,GradientType=0,Start
     story.new_record? ? "" : story.tracker.name
   end
 
+  def project_name_or_empty(story)
+    story.new_record? ? "" : story.project.name
+  end
+
+  def custom_fields_or_empty(story)
+    return '' if story.new_record?
+    res = ''
+    story.custom_field_values.each{|value|
+      res += "<p><b>#{h(value.custom_field.name)}</b>: #{simple_format_without_paragraph(h(show_value(value)))}</p>"
+    }
+    res.html_safe
+  end
+
   def updated_on_with_milliseconds(story)
     date_string_with_milliseconds(story.updated_on, 0.001) unless story.blank?
   end
 
   def date_string_with_milliseconds(d, add=0)
     return '' if d.blank?
-    d.strftime("%B %d, %Y %H:%M:%S") + '.' + (d.to_f % 1 + add).to_s.split('.')[1]
+    d.strftime("%B %d, %Y %H:%M:%S") + '.' + (d.to_f % 1 + add).to_s.split('.')[1] + d.strftime(" %z")
   end
 
-  def remaining_hours(item)
+  def remaining_hours_or_empty(item)
     item.remaining_hours.blank? || item.remaining_hours==0 ? "" : item.remaining_hours
   end
 
@@ -139,62 +166,48 @@ filter:progid:DXImageTransform.Microsoft.Gradient(Enabled=1,GradientType=0,Start
     initial_points - ( (workdays(initial_day, day).size - 1) * day_diff )
   end
 
-  def release_burndown_to_csv(release)
-    ic = Iconv.new(l(:general_csv_encoding), 'UTF-8')
+  def csv_encode(s)
+    if RUBY_VERSION >= "1.9"
+      s.encode(l(:general_csv_encoding))
+    else
+      Iconv.conv(l(:general_csv_encoding), 'UTF-8', s)
+    end
+  rescue
+    s
+  end
 
+  def release_burndown_to_csv(release)
     # FIXME decimal_separator is not used, instead a hardcoded s/\./,/g is done
     # below to make (German) Excel happy
     #decimal_separator = l(:general_csv_decimal_separator)
 
     export = FCSV.generate(:col_sep => ';') do |csv|
       # csv header fields
-      headers = [ l(:label_date),
-                  l(:remaining_story_points),
-                  l(:ideal)
+      headers = [ l(:label_points_backlog),
+                  l(:label_points_added),
+                  l(:label_points_accepted)
                 ]
-      csv << headers.collect {|c| begin; ic.iconv(c.to_s); rescue; c.to_s; end }
+      csv << headers.collect {|c| csv_encode(c.to_s) }
 
-      # csv lines
-      if (release.release_start_date != release.burndown_days[0])
-        fields = [release.release_start_date,
-                  release.initial_story_points.to_f.to_s.gsub('.', ','),
-                  release.initial_story_points.to_f.to_s.gsub('.', ',')]
-        csv << fields.collect {|c| begin; ic.iconv(c.to_s); rescue; c.to_s; end }
-      end
-      release.burndown_days.each do |rbd|
-        fields = [rbd.day,
-                  rbd.remaining_story_points.to_s.gsub('.', ','),
-                  release_burndown_interpolate(release, rbd.day).to_s.gsub('.', ',')
+      bd = release.burndown
+      lines = 0
+      lines = bd[:added_points].size unless bd[:added_points].nil?
+      for i in (0..(lines-1))
+        fields = [ bd[:added_points][i].to_s.gsub('.', ','),
+                   bd[:backlog_points][i].to_s.gsub('.', ','),
+                   bd[:closed_points][i].to_s.gsub('.', ',')
                  ]
-        csv << fields.collect {|c| begin; ic.iconv(c.to_s); rescue; c.to_s; end }
-      end
-      if (release.release_end_date != release.burndown_days[-1])
-        fields = [release.release_end_date, "", "0,0"]
-        csv << fields.collect {|c| begin; ic.iconv(c.to_s); rescue; c.to_s; end }
+        csv << fields.collect{ |c| csv_encode(c.to_s) }
       end
     end
     export
   end
 
-  # Renders the project quick-jump box
-  def render_backlog_project_jump_box
+  def self.find_backlogs_enabled_active_projects
     projects = EnabledModule.find(:all,
                              :conditions => ["enabled_modules.name = 'backlogs' and status = ?", Project::STATUS_ACTIVE],
                              :include => :project,
                              :joins => :project).collect { |mod| mod.project}
-
-    projects = Member.find(:all, :conditions => ["user_id = ? and project_id IN (?)", User.current.id, projects.collect(&:id)]).collect{ |m| m.project}
-
-    if projects.any?
-      s = '<select onchange="if (this.value != \'\') { window.location = this.value; }">' +
-            "<option value=''>#{ l(:label_jump_to_a_project) }</option>" +
-            '<option value="" disabled="disabled">---</option>'
-      s << project_tree_options_for_select(projects, :selected => @project) do |p|
-        { :value => url_for(:controller => 'rb_master_backlogs', :action => 'show', :project_id => p, :jump => current_menu_item) }
-      end
-      s << '</select>'
-      s.html_safe
-    end
   end
 
   # Returns a collection of users allowed to log time for the current project. (see app/views/rb_taskboards/show.html.erb for usage)
@@ -213,6 +226,12 @@ filter:progid:DXImageTransform.Microsoft.Gradient(Enabled=1,GradientType=0,Start
   def users_assignable_options_for_select(collection)
     s = ''
     groups = ''
+
+    if collection.include?(User.current)
+      el = User.current
+      s << "<option value=\"#{el.id}\" color=\"#{el.backlogs_preference[:task_color]}\" color_light=\"#{el.backlogs_preference[:task_color_light]}\">&lt;&lt; #{l(:label_me)} &gt;&gt;</option>"
+    end
+
     collection.sort.each do |element|
       if element.is_a?(Group)
         groups << "<option value=\"#{element.id}\" color=\"#AAAAAA\" color_light=\"#E0E0E0\">#{h element.name}</option>"
@@ -226,24 +245,38 @@ filter:progid:DXImageTransform.Microsoft.Gradient(Enabled=1,GradientType=0,Start
     s.html_safe
   end
 
-  # Streamline the difference between <%=  %> and <%  %>
-  def rb_labelled_fields_for(*args, &proc)
-    fields_string = labelled_fields_for(*args, &proc)
-    if Rails::VERSION::MAJOR < 3
-      fields_string
+  def release_options_for_select(releases, selected=nil)
+    grouped = Hash.new {|h,k| h[k] = []}
+    selected = [selected].compact unless selected.kind_of?(Array)
+    releases.each do |release|
+      grouped[release.project.name] << [release.name, release.id]
+    end
+    # Add in the selected
+    (selected - releases).each{|s| grouped[s.project.name] << [s.name, s.id] }
+
+    if grouped.keys.size > 1
+      grouped_options_for_select(grouped, selected.collect{|s| s.id})
     else
-      concat(fields_string)
+      options_for_select((grouped.values.first || []), selected.collect{|s| s.id})
     end
   end
 
-  # Streamline the difference between <%=  %> and <%  %>
-  def rb_labelled_form_for(*args, &proc)
-    form_string = labelled_form_for(*args, &proc)
-    if Rails::VERSION::MAJOR < 3
-      form_string
-    else
-      concat(form_string)
-    end
+  # Convert selected ids to integer and remove blank values.
+  def selected_ids(options)
+    return nil if options.nil?
+    options.collect{|o| o.to_i unless o.blank?}.compact! 
   end
 
+  def format_release_sharing(v)
+    RbRelease::RELEASE_SHARINGS.include?(v) ? l("label_version_sharing_#{v}") : "none"
+  end
+
+  #fixup rails base uri which is not obeyed IF url_for is used in a redmine layout hook
+  def url_for_prefix_in_hooks
+    if Rails::VERSION::MAJOR < 3
+      '' #actionpack-2.3.14/lib/action_controller/url_rewriter.rb is injecting relative_url_root
+    else
+      Redmine::Utils.relative_url_root #actionpack-3* is not???
+    end
+  end
 end

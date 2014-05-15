@@ -1,6 +1,4 @@
-if(RB==null){ var RB = {}; }
-
-if (RB.constants == null) {
+if (!RB.constants) {
   RB.buildImageTag = function(name) {
     return "<img src='<%= image_path('') %>"+ name + "'/>";
   };
@@ -20,9 +18,24 @@ if (RB.constants == null) {
     new_story_position: <%= Backlogs.setting[:new_story_position].to_s.to_json.html_safe %>
   };
 
+  RB.constants.locale = {
+    _: function(s) {
+      if (RB.constants.locale[s])
+        return RB.constants.locale[s]; 
+      return s;
+    },
+    'Filter tasks': "<%= l(:label_filter_tasks)%>",
+    'Filter tasks: my tasks': "<%= l(:label_filter_tasks_my_tasks)%>",
+    'All tasks': "<%= l(:label_all_tasks) %>",
+    'My tasks': "<%= l(:label_my_tasks) %>",
+    'View options': "<%= l(:label_view_options) %>",
+    'No data to show': "<%= l(:label_no_data_to_show) %>"
+  };
+
   RB.routes = {
     create_sprint: <%= url_for(:controller => 'rb_sprints', :action => 'create').to_json.html_safe %>,
     update_sprint: <%= url_for(:controller => 'rb_sprints', :action => 'update', :sprint_id => ':id').to_json.html_safe %>,
+    update_release: <%= url_for(:controller => 'rb_releases', :action => 'update', :release_id => ':id').to_json.html_safe %>,
 
     create_story: <%= url_for(:controller => 'rb_stories', :action => 'create').to_json.html_safe %>,
     update_story: <%= url_for(:controller => 'rb_stories', :action => 'update', :id => ':id').to_json.html_safe %>,
@@ -35,7 +48,9 @@ if (RB.constants == null) {
 
     show_updated_items: <%= url_for(:controller => 'rb_updated_items', :action => 'show', :project_id => ':id').to_json.html_safe %>,
     show_burndown_chart: <%= url_for(:controller => 'rb_burndown_charts', :action => 'show', :sprint_id => ':id').to_json.html_safe %>,
-    show_burndown_embedded: <%= url_for(:controller => 'rb_burndown_charts', :action => 'embedded', :sprint_id => ':id').to_json.html_safe %>
+    show_burndown_embedded: <%= url_for(:controller => 'rb_burndown_charts', :action => 'embedded', :sprint_id => ':id').to_json.html_safe %>,
+    show_tooltip: <%= url_for(:controller => 'rb_stories', :action => 'tooltip', :id => ':id').to_json.html_safe %>,
+    home: <%= url_for(:home).to_json.html_safe %>
   };
 
   RB.urlFor = function(route_name, options) {
@@ -49,54 +64,63 @@ if (RB.constants == null) {
 
 <% if @project %>
   RB.constants.project_id = <%= @project.id %>;
+  RB.permissions = {
+      create_stories: <%= User.current.allowed_to?(:create_stories, @project) ? 'true' : 'false' %>,
+      update_stories: <%= User.current.allowed_to?(:update_stories, @project) ? 'true' : 'false' %>,
+      create_sprints: <%= User.current.allowed_to?(:create_sprints, @project) ? 'true' : 'false' %>,
+      update_sprints: <%= User.current.allowed_to?(:update_sprints, @project) ? 'true' : 'false' %>,
+      create_releases: <%= User.current.allowed_to?(:modify_releases, @project) ? 'true' : 'false' %>,
+      update_releases: <%= User.current.allowed_to?(:modify_releases, @project) ? 'true' : 'false' %>,
+      create_tasks: <%= User.current.allowed_to?(:create_tasks, @project) ? 'true' : 'false' %>,
+      update_tasks: <%= User.current.allowed_to?(:update_tasks, @project) ? 'true' : 'false' %>,
+      create_impediments: <%= User.current.allowed_to?(:create_impediments, @project) ? 'true' : 'false' %>,
+      update_impediments: <%= User.current.allowed_to?(:update_impediments, @project) ? 'true' : 'false' %>
+  };
 <% end %>
 
 <% if @sprint %>
   RB.constants.sprint_id = <%= @sprint.id %>;
   RB.constants.project_id = <%= @sprint.project_id %>;
+  <% if @context == 'taskboard' %>
+  RB.constants.task_states = <%= workflow_transitions(RbTask).to_json.html_safe %>;
+  <% end %>
 <% end %>
 
 <%
   if @context == 'backlogs'
-    default_status = IssueStatus.default
-    default_status = default_status.id.to_s if default_status
+=begin
+ project_versions maps all projects to those versions which can receive the projects issues.
+ project_versions are used by the js user interface to determine to which backlogs a dragged story can be dropped to.
+ It uses the project_id attached to the story and checks all visible sprints if it is in the array hashed to the project_id here.
+ We need to provide maps to at lest all projects which we find in visible versions AND all self_and_descendants for the product backlog. 
+ An approximation would be all projects which all visible sprints are shared in plus self_and_descendants.
+ Most simple way: use all projects the user can see, trading some bytes of bandwidth against many server cycles of comparison and filtering.
+=end
+    project_versions = Hash[@project.droppable_sprints.map{|v|
+      [
+        v["project"],
+	v["list"].split(',').collect{|s| s.to_s}
+      ]
+    }]
 
-    roles = User.current.roles_for_project(@project)
-    transitions = {:states => {}, :transitions => {} , :default => default_status }
+=begin
+ a release can contain stories of all projects which it is visible
+ but droppables are only self_and_descendants of the current view to avoid user confusion by vanishing stories
+=end
+    project_releases = Hash[@project.droppable_releases.map{|v|
+      [
+        v["project"],
+        v["list"].split(',').collect{|r| r.to_s}
+      ]
+    }]
 
-    RbStory.trackers.each {|tracker_id|
-      tracker = Tracker.find(tracker_id)
-      tracker_id = tracker_id.to_s
-
-      transitions[:transitions][tracker_id] = {}
-
-      tracker.issue_statuses.each {|status|
-        status_id = status.id.to_s
-
-        transitions[:states][status_id] = {:name => status.name, :closed => (status.is_closed? ? l(:label_closed_issues) + ' ' : '')}
-
-        [[false, false], [true, true], [false, true], [true, false]].each{|creator, assignee|
-          key = "#{creator ? '+' : '-'}c#{assignee ? '+' : '-'}a"
-
-          transitions[:transitions][tracker_id][key] ||= {}
-
-          begin
-            allowed_statues = status.new_statuses_allowed_to(roles, tracker, creator, assignee)
-          rescue #Workaround in order to support redmine 1.1.3
-            allowed_statues = status.new_statuses_allowed_to(roles, tracker)
-          end
-
-          allowed = allowed_statues.collect{|s| s.id.to_s}
-
-          transitions[:transitions][tracker_id][key][:default] ||= allowed[0]
-
-          allowed.unshift(status_id)
-
-          transitions[:transitions][tracker_id][key][status_id] = allowed.compact.uniq
-        }
-      }
-    }
+#project_self_and_descendants is used by the js ui to determine if a dragged story can be dropped onto the product backlog.
+    projects_in_product_backlog = Hash[@project.projects_in_shared_product_backlog.map{|p| [p.id.to_s, true]}]
   %>
-  RB.constants.story_states = <%= transitions.to_json.html_safe %>;
-  RB.routes.backlog_menu = <%= url_for(:controller => 'rb_master_backlogs', :action => 'menu', :project_id => @project.identifier, :format => 'json', :only_path => true).to_json.html_safe %>;
+  RB.constants.projects_in_product_backlog = <%= projects_in_product_backlog.to_json.html_safe %>;
+  RB.constants.project_versions = <%= project_versions.to_json.html_safe %>;
+  RB.constants.project_releases = <%= project_releases.to_json.html_safe %>;
+  RB.constants.story_states = <%= workflow_transitions(RbStory).to_json.html_safe %>;
+  RB.routes.backlog_menu = <%= url_for(:controller => 'rb_master_backlogs', :action => 'menu', :project_id => @project.identifier, :only_path => true).to_json.html_safe %>;
+  RB.routes.closed_sprints = <%= url_for(:controller => 'rb_master_backlogs', :action => 'closed_sprints', :project_id => @project.identifier, :only_path => true).to_json.html_safe %>;
 <% end %>

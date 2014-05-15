@@ -1,91 +1,122 @@
 #!/usr/bin/env ruby
 
 require 'rubygems'
-require 'github-v3-api'
+require 'octokit'
 require 'inifile'
 require 'time'
+require 'yaml'
 
-config = IniFile.load(File.expand_path('~/.gitconfig'))['github-issues']
-GITHUB = GitHubV3API.new(config['token'])
-ORG = 'backlogs'
-REPO = 'redmine_backlogs'
-
-puts GITHUB.repos.get(ORG, REPO).list_collaborators.inspect
-exit
-#puts github.issues.list(:user => 'backlogs', :repo => 'redmine_backlogs').collect{|i| i.state}.uniq.inspect
+travis = YAML::load(open(File.join(File.dirname(__FILE__), '..', '..', '.travis.yml')))
+SUPPORTED = {
+  'backlogs' => travis['release'],
+  'ruby' => travis['rvm'].join(', '),
+  'platform' => (travis['env'] - travis['matrix']['allow_failures'].collect{|f| f['env']}).collect{|v|
+    v = v.split.collect{|k| k.split(/=/)}.detect{|k| k[0]=='REDMINE_VER'}
+    v.nil? ? nil : v[1]
+  }.uniq.sort.join(', ')
+}
 
 class Issue
-  STATES = {
-    'IMPORTANT-READ'    =>  [:keep, :no_feedback_required],
-    'on-hold'           =>  [:keep, :no_feedback_required],
-    'in-progress'       =>  [:keep, :no_feedback_required],
-    'feature-request'   =>  [:keep, :no_feedback_required],
-    'release-blocker'   =>  :keep,
-    'no-feedback'       =>  :keep,
-    'redmine2'          =>  :keep
-  }
-  @@collaborators = GITHUB.repos.get(ORG, REPO).list_collaborators.collect{|u| u.login}
+  def initialize(repo, issue)
+    puts issue.number if STDOUT.tty?
 
-  def initialize(issue)
+    @repo = repo
     @issue = issue
-  end
+    @labels = @issue.labels.collect{|l| l.name}
 
-  def self.states(cond)
-    return Issue::STATES.keys.select{|k| Issue::STATES[k] == cond || (Issue::STATES[k].is_a?(Array) && Issue::STATES[k].include?(cond))}
-  end
+    @comments = @repo.client.issue_comments(@repo.repo, issue.number.to_s)
 
-  def labels
-    @issue.labels
-  end
+    @labels.delete_if{|l| l =~ /data-missing/ || l =~ /release/ || l == 'internal' || l=~ /attention/ || l =~ /feedback/i || l =~ /^[0-9]+days?$/i }
 
-  def relabel!
-    newlabels = labels.reject{|l| l =~ /feedback/i || l =~ /^[0-9]+days?$/i }
+    @labels << 'release-blocker' if issue.milestone && issue.milestone == @repo.next_milestone
 
-    if @issue.comments.size > 0
-      # last comment by a repo committer and not labeled with a 'no-feedback-required' label
-      if @@collaborators.include?(@comments[-1].user.login) && (newlabels & Issue.states(:no_feedback_required)).size == 0
-        newlabels << "feedback-required"
+    if (@labels & ['on-hold', 'feature-request', 'IMPORTANT-READ']).size == 0 # any of these labels means it doesn't participate in the workflow
+      body = "\n#{issue.body}\n"
+      context = {}
+      header = ''
+      ['platform', 'backlogs', 'ruby'].each{|part|
+        x = body.match(/\n#{part}:([^\n]+)\n/)
+        body.gsub!(/\n#{part}:([^\n]+)\n/, "\n")
+        x = x ? x[1].gsub(/#.*/, '').strip : ''
+        context[part] = x
+        header << "#{part}: #{x} # supported: #{SUPPORTED[part]}\n"
+      }
+      @labels << 'data-missing' if context.values.reject{|v| v == ''}.size != 3
+      body = "#{header}\n#{body.strip}"
+      @repo.client.update_issue(@repo.repo, issue.number, issue.title.to_s, body) if body != issue.body.to_s
 
-        last_non_collab_comment = nil
-        @comments.reverse.each{|c|
-          next if @@collaborators.include?(c.user.login)
-          last_non_collab_comment = Time.parse(c.updated_at)
-        }
+      comment = {
+        (@repo.collaborators.include?(issue.user.login) ? :collab : :user) => Time.parse(issue.created_at)
+      }
+      @comments.each{|c|
+        comment[(@repo.collaborators.include?(c.user.login) ? :collab : :user)] = Time.parse(c.created_at)
+      }
 
-        if last_non_collab_comment
-          diff = Integer((Time.now - last_non_collab_comment)) / (60 * 60 * 24)
-          case diff
-          when 0 then nil
-          when 1 then l << '1day'
-          else
-            newlabels << "#{diff}days"
-            newlabels << 'no-feedback' if diff > 4
-          end
-        end
+      response = comment[:collab] ? Integer((Time.now - comment[:collab])) / (60 * 60 * 24) : nil
+
+      if comment[:user] && (comment[:collab].nil? || comment[:user] > comment[:collab])
+        @labels << 'attention'
+      elsif (comment[:user] && comment[:collab] && comment[:collab] >= comment[:user] && response < 5) || comment[:user].nil?
+        @labels << 'feedback-required'
+      elsif (comment[:user] && comment[:collab] && comment[:collab] >= comment[:user]) || comment[:user].nil?
+        @labels << 'no-feedback'
+        @labels << "#{response}days"
       end
+
+      @labels.delete('attention') if @labels.include?('data-missing')
+
+      @labels << 'internal' if comment[:user].nil?
     end
 
-    newlabels = newlabels.compact.uniq.collect{|lb| lb.downcase}
-    repolabels = {}
-    CLIENT.labels(REPO).each{|l| repolabels[l.name] = l}
+    if @labels.size == 0
+      @repo.client.remove_all_labels(@repo.repo, issue.number)
+    else
+      @repo.client.replace_all_labels(@repo.repo, issue.number, @labels)
+    end
 
-    # remove unused labels from the issue
-    (oldlabels - @labels).each{|l| CLIENT.remove_label(REPO, @issue.number, l) }
-
-    # pre-declare new labels
-    (@labels - repolabels.keys).each {|label| CLIENT.add_label(REPO, label) }
-    # add new labels
-    CLIENT.add_labels_to_an_issue(REPO, @issue.number, (@labels - oldlabels))
-
-    @labels
+    @labels.each{|l| @repo.labels[l] = :keep}
   end
-
-  attr_reader :id, :comments
 end
 
-issues = CLIENT.list_issues(REPO, :state => 'open').collect{|i| Issue.new(i)}
-labels = Issue.states(:keep)
-issues.each{|issue| labels = labels + issue.labels(:recalc) }
-labels.uniq!
-puts (CLIENT.labels(REPO).collect{|l| l.name} - labels).inspect
-#(CLIENT.labels(REPO).collect{|l| l.name} - labels).each {|label| CLIENT.delete_label(REPO, label) }
+class Repository
+  def initialize(repo, config)
+    @repo = repo
+    @client = Octokit::Client.new(config)
+    @collaborators = @client.collaborators(@repo).collect{|u| u.login}
+    @labels = {}
+    @client.labels(@repo).each{|label|
+      label = label.name unless label.is_a?(String)
+      @labels[label] = :delete
+    }
+
+    @milestones = @client.milestones(@repo, :state => 'open')
+    @milestones.sort!{|a, b| a.title.split('.').collect{|v| v.rjust(10, '0')}.join('.') <=> b.title.split('.').collect{|v| v.rjust(10, '0')}.join('.') }
+    @next_milestone = @milestones.size == 0 ? nil : @milestones[0]
+
+    begin
+      page ||= 0
+      page += 1
+      issues = @client.list_issues(@repo, :page => page, :state => 'open')
+      issues.each{|i| Issue.new(self, i) }
+    end while issues.size != 0
+
+    @labels.each_pair{|l, status|
+      next if status == :keep
+      @client.delete_label!(@repo, l)
+    }
+  end
+
+  attr_accessor :client, :repo, :collaborators, :labels, :milestones, :next_milestone
+end
+
+config = IniFile.load(File.expand_path('~/.gitconfig'))['github-issues']
+config.keys.each{|k|
+  sk = k.gsub(/[A-Z]/){|c| "_#{c.downcase}"}.intern
+  config[sk] = config.delete(k)
+}
+
+begin
+  Repository.new('backlogs/redmine_backlogs', config)
+rescue => e
+  raise e if STDOUT.tty?
+end

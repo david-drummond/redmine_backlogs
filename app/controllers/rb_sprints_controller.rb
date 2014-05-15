@@ -12,9 +12,19 @@ class RbSprintsController < RbApplicationController
     attribs = Hash[*attribs.flatten]
     @sprint = RbSprint.new(attribs)
 
+    #share the sprint according to the global setting
+    default_sharing = Backlogs.setting[:sharing_new_sprint_sharingmode]
+    if default_sharing 
+      if @sprint.allowed_sharings.include? default_sharing
+        @sprint.sharing = default_sharing
+      end
+    end
+
     begin
       @sprint.save!
     rescue => e
+      Rails.logger.debug e
+      Rails.logger.debug e.backtrace.join("\n")
       render :text => e.message.blank? ? e.to_s : e.message, :status => 400
       return
     end
@@ -23,22 +33,25 @@ class RbSprintsController < RbApplicationController
     status = (result == 0 ? 200 : 400)
 
     respond_to do |format|
-      format.html { render :partial => "sprint", :status => status, :locals => { :sprint => @sprint } }
+      format.html { render :partial => "sprint", :status => status, :locals => { :sprint => @sprint, :cls => 'model sprint' } }
     end
   end
 
   def update
-    attribs = params.select{|k,v| k != 'id' and RbSprint.column_names.include? k }
+    except = ['id', 'project_id']
+    attribs = params.select{|k,v| (!except.include? k) and (RbSprint.column_names.include? k) }
     attribs = Hash[*attribs.flatten]
     begin
       result  = @sprint.update_attributes attribs
     rescue => e
+      Rails.logger.debug e
+      Rails.logger.debug e.backtrace.join("\n")
       render :text => e.message.blank? ? e.to_s : e.message, :status => 400
       return
     end
 
     respond_to do |format|
-      format.html { render :partial => "sprint", :status => (result ? 200 : 400), :locals => { :sprint => @sprint } }
+      format.html { render :partial => "sprint", :status => (result ? 200 : 400), :locals => { :sprint => @sprint, :cls => 'model sprint' } }
     end
   end
 
@@ -98,7 +111,7 @@ class RbSprintsController < RbApplicationController
   end
 
   def close_completed
-    @project.close_completed_versions if request.put?
+    @project.close_completed_versions
 
     redirect_to :controller => 'rb_master_backlogs', :action => 'show', :project_id => @project
   end

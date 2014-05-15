@@ -101,6 +101,7 @@ module BacklogsPrintableCards
         end
       rescue => e
         Rails.logger.error "Backlogs printable cards: error loading #{layout['name']}: #{e}"
+        Rails.logger.error(e.backtrace.join("\n"))
         @valid = false
       end
     end
@@ -211,29 +212,39 @@ module BacklogsPrintableCards
         }
       }
 
-      File.open(File.dirname(__FILE__) + '/labels.yaml', 'w') do |dump|
+      File.open(File.dirname(__FILE__) + '/labels/labels.yaml', 'w') do |dump|
         YAML.dump(@@layouts, dump)
       end
-      File.open(File.dirname(__FILE__) + '/labels-malformed.yaml', 'w') do |dump|
+      File.open(File.dirname(__FILE__) + '/labels/labels-malformed.yaml', 'w') do |dump|
         YAML.dump(malformed_labels, dump)
       end
     end
 
     @@layouts ||= {}
     begin
-      layouts = YAML::load_file(File.dirname(__FILE__) + '/labels.yaml')
+      layouts = YAML::load_file(File.dirname(__FILE__) + '/labels/labels.yaml')
       layouts.each_pair{|key, spec|
-        layout = CardPageLayout.new(spec.merge({'name' => key}))
+        if spec.instance_of?(CardPageLayout)
+          layout = spec #new yaml stores and restores our class
+        else
+          layout = CardPageLayout.new(spec.merge({'name' => key})) #old layout.yaml might not have class information, so we get a hash
+        end
         @@layouts[key] = layout if layout.valid
       }
     rescue => e
-      Rails.logger.error "Backlogs printable cards: problem loading labels: #{e}"
+      Rails.logger.error("Backlogs printable cards: problem loading labels: #{e}")
+      Rails.logger.error(e.backtrace.join("\n"))
     end
   end
 
   # put the mixins in a separate class, seems to interfere with prawn otherwise
   class Gravatar
-    include GravatarHelper::PublicMethods
+    case Backlogs.platform
+      when :redmine
+        include GravatarHelper::PublicMethods
+      when :chiliproject
+        include Gravatarify::Helper
+    end
     include ERB::Util
 
     def initialize(email, size)
@@ -260,7 +271,7 @@ module BacklogsPrintableCards
 
       f = nil
       ['-default', ''].each {|postfix|
-        t = File.dirname(__FILE__) + "/#{template}#{postfix}.glabels"
+        t = File.dirname(__FILE__) + "/labels/#{template}#{postfix}.glabels"
         f = t if File.exists?(t)
       }
       raise "No template for #{template}" unless f

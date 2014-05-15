@@ -1,3 +1,6 @@
+include RbCommonHelper
+include ContextMenusHelper
+
 module BacklogsPlugin
   module Hooks
     class LayoutHook < Redmine::Hook::ViewListener
@@ -12,6 +15,8 @@ module BacklogsPlugin
 
       def view_issues_sidebar_planning_bottom(context={ })
         begin
+          return '' if User.current.anonymous?
+
           project = context[:project]
 
           return '' unless project && !project.blank?
@@ -41,19 +46,16 @@ module BacklogsPlugin
             :project_id => project.identifier
           }
           url_options[:sprint_id] = sprint_id if sprint_id
-          if Rails::VERSION::MAJOR < 3
-            url = '' #actionpack-2.3.14/lib/action_controller/url_rewriter.rb is injecting relative_url_root
-          else
-            url = Redmine::Utils.relative_url_root #actionpack-3* is not???
-          end
+          url = url_for_prefix_in_hooks
           url += url_for(url_options)
 
           # Why can't I access protect_against_forgery?
           return %{
             <div id="backlogs_view_issues_sidebar"></div>
             <script type="text/javascript">
-              jQuery(document).ready(function() {
-                jQuery('#backlogs_view_issues_sidebar').load('#{url}');
+              var $j = RB.$ || $;
+              $j(function($) {
+                $('#backlogs_view_issues_sidebar').load('#{url}');
               });
             </script>
           }
@@ -74,9 +76,20 @@ module BacklogsPlugin
           project = context[:project]
 
           if issue.is_story?
-            snippet += "<tr><th>#{l(:field_story_points)}</th><td>#{RbStory.find(issue.id).points_display}</td></tr>"
+            snippet += "<tr><th>#{l(:field_story_points)}</th><td>#{RbStory.find(issue.id).points_display}</td>"
+            unless issue.remaining_hours.nil?
+              snippet += "<th>#{l(:field_remaining_hours)}</th><td>#{l_hours(issue.remaining_hours)}</td>"
+            end
+            snippet += "</tr>"
             vbe = issue.velocity_based_estimate
             snippet += "<tr><th>#{l(:field_velocity_based_estimate)}</th><td>#{vbe ? vbe.to_s + ' days' : '-'}</td></tr>"
+
+            unless issue.release_id.nil?
+              release = RbRelease.find(issue.release_id)
+              snippet += "<tr><th>#{l(:field_release)}</th><td>#{link_to release.name, :controller=>'rb_releases', :action=>'show', :release_id=>release}</td>"
+              relation_translate = l("label_release_relationship_#{RbStory.find(issue.id).release_relationship}")
+              snippet += "<th>#{l(:field_release_relationship)}</th><td>#{relation_translate}</td></tr>"
+            end
           end
 
           if issue.is_task? && User.current.allowed_to?(:update_remaining_hours, project) != nil
@@ -109,18 +122,27 @@ module BacklogsPlugin
             snippet += context[:form].text_field(:story_points, :size => 3)
             snippet += '</p>'
 
+            if issue.safe_attribute?('release_id') && issue.assignable_releases.any?
+              snippet += '<div class="splitcontentleft"><p>'
+              snippet += context[:form].select :release_id, release_options_for_select(issue.assignable_releases, issue.release), :include_blank => true
+              snippet += '</p></div>'
+              snippet += '<div class="splitcontentright"><p>'
+              snippet += context[:form].select :release_relationship, RbStory::RELEASE_RELATIONSHIP.collect{|v|
+                [ l("label_release_relationship_#{v}"), v] }
+
+              snippet += '</p></div>'
+            end
+
             if issue.descendants.length != 0 && !issue.new_record?
-              snippet += javascript_include_tag 'jquery/jquery-1.6.2.min.js', :plugin => 'redmine_backlogs'
               snippet += <<-generatedscript
 
                 <script type="text/javascript">
-                  var $j = jQuery.noConflict();
-
-                  $j(document).ready(function() {
-                    $j('#issue_estimated_hours').attr('disabled', 'disabled');
-                    $j('#issue_done_ratio').attr('disabled', 'disabled');
-                    $j('#issue_start_date').parent().hide();
-                    $j('#issue_due_date').parent().hide();
+                  var $j = RB.$ || $;
+                  $j(function($) {
+                    $('#issue_estimated_hours').attr('disabled', 'disabled');
+                    $('#issue_done_ratio').attr('disabled', 'disabled');
+                    $('#issue_start_date').parent().hide();
+                    $('#issue_due_date').parent().hide();
                   });
                 </script>
               generatedscript
@@ -151,6 +173,74 @@ module BacklogsPlugin
         end
       end
 
+      def view_issues_new_top(context={ })
+        #Remove the copy_subtasks functionality from redmine 2.1+ since backlogs offers it with a choice to copy only open tasks
+        project = context[:project]
+        return '' unless project.module_enabled?('backlogs')
+        return '<script type="text/javascript">$(function(){try{$("#copy_subtasks")[0].checked=false;$($("#copy_subtasks")[0].parentNode).hide();}catch(e){}});</script>' if (Redmine::VERSION::MAJOR == 2 && Redmine::VERSION::MINOR >= 1) || Redmine::VERSION::MAJOR > 2
+      end
+
+      def view_issues_bulk_edit_details_bottom(context={ })
+        issues = context[:issues]
+        projects = issues.collect(&:project).compact.uniq
+        return if projects.size == 0
+        releases = projects.map {|p| p.shared_releases.open}.reduce(:&)
+        return if releases.size == 0
+
+        snippet = ''
+        snippet += "<p>
+          <label for='issue_release_id'>#{ l(:field_release)}</label>
+          #{ select_tag('issue[release_id]', content_tag('option', l(:label_no_change_option), :value => '') +
+                                   content_tag('option', l(:label_none), :value => 'none') +
+                                   release_options_for_select(releases)) }
+          </p>"
+        snippet += "<p>
+          <label for='issue_release_relationship'>#{ l(:field_release_relationship)}</label>"
+        snippet += select_tag 'issue[release_relationship]',
+                     options_for_select([[l(:label_no_change_option),'']] +
+                       RbStory::RELEASE_RELATIONSHIP.collect{|v|
+                        [l("label_release_relationship_#{v}"), v] } )
+        snippet += "</p>"
+      end
+
+      def view_issues_context_menu_end(context={ })
+        begin
+          issues = context[:issues]
+          issue = nil
+          issue = issues.first if issues.size == 1
+          projects = issues.collect(&:project).compact.uniq
+          return if projects.size == 0
+          releases = projects.map {|p| p.shared_releases.open}.reduce(:&)
+          return if releases.size == 0
+          snippet='
+            <li class="folder">
+              <a href="#" class="submenu">'+ l(:field_release) + '</a>
+              <ul>'
+          releases.each do |s|
+              snippet += '<li>' +
+                context_menu_link(s.name,
+                                  {:controller => 'issues', :action => 'bulk_update', :ids => issues, :issue => {:release_id => s}, :back_url => context[:back]},
+                                  :method => :post,
+                                  :selected => (issue && s == issue.release),
+                                  :disabled => !context[:can][:update])+
+              '</li>'
+          end
+          snippet += '<li>' +
+                context_menu_link(l(:label_none),
+                                  {:controller => 'issues', :action => 'bulk_update', :ids => issues, :issue => {:release_id => 'none'}, :back_url => context[:back]},
+                                  :method => :post,
+                                  :selected => (issue && issue.release.nil?),
+                                  :disabled => !context[:can][:update])+
+            '</li>'
+          snippet += '
+              </ul>
+            </li>'
+        rescue => e
+          Rails.logger.error("Exception in Backlogs view_issues_context_menu_end #{e}")#exception(context, e)
+          return ''
+        end
+      end
+
       def view_versions_show_bottom(context={ })
         begin
           version = context[:version]
@@ -162,18 +252,21 @@ module BacklogsPlugin
 
           if User.current.allowed_to?(:edit_wiki_pages, project)
             snippet += '<span id="edit_wiki_page_action">'
-            snippet += link_to l(:button_edit_wiki), {:controller => 'rb_wikis', :action => 'edit', :project_id => project.id, :sprint_id => version.id }, :class => 'icon icon-edit'
+            snippet += link_to l(:button_edit_wiki), 
+                      url_for_prefix_in_hooks + url_for({:controller => 'rb_wikis', :action => 'edit', :sprint_id => version.id }),
+                      :class => 'icon icon-edit'
             snippet += '</span>'
 
             # this wouldn't be necesary if the schedules plugin
             # didn't disable the contextual hook
-            snippet += javascript_include_tag 'jquery/jquery-1.6.2.min.js', :plugin => 'redmine_backlogs'
             snippet += <<-generatedscript
 
               <script type="text/javascript">
-                  var $j = jQuery.noConflict();
-                $j(document).ready(function() {
-                  $j('#edit_wiki_page_action').detach().appendTo("div.contextual");
+                var $j = RB.$ || $;
+                $j(function($) {
+                  $('#edit_wiki_page_action').detach().appendTo("div.contextual");
+                  //hide the redmine 'edit associated wiki page' if it exists, so we only have our button consistently.
+                  if ('#{version.wiki_page_title}' !== '') $(".contextual a.icon-edit:contains('#{version.wiki_page_title}')").hide()
                 });
               </script>
             generatedscript
@@ -187,13 +280,13 @@ module BacklogsPlugin
       def view_my_account(context={ })
         begin
           return %{
+            </fieldset>
+            <fieldset class="box tabular">
             <h3>#{l(:label_backlogs)}</h3>
-            <div class="box tabular">
             <p>
-              #{label :backlogs, :task_color}
+              #{label :backlogs, l(:field_task_color)}
               #{text_field :backlogs, :task_color, :value => context[:user].backlogs_preference[:task_color]}
             </p>
-            </div>
           }
         rescue => e
           exception(context, e)
@@ -246,17 +339,16 @@ module BacklogsPlugin
         end
       end
 
-      def controller_issues_edit_after_save(context={ })
+      def controller_issues_edit_before_save(context={ })
         params = context[:params]
         issue = context[:issue]
 
-        if issue.is_task?
+        if issue.is_task? && params.include?(:remaining_hours)
           begin
             issue.remaining_hours = Float(params[:remaining_hours])
           rescue ArgumentError, TypeError
             issue.remaining_hours = nil
           end
-          issue.save
         end
       end
 
@@ -265,10 +357,14 @@ module BacklogsPlugin
 
         if User.current.admin? && !context[:request].session[:backlogs_configured]
           context[:request].session[:backlogs] = Backlogs.configured?
-          context[:controller].send(:flash)[:error] = l(:label_backlogs_unconfigured) if !context[:request].session[:backlogs]
+          unless context[:request].session[:backlogs]
+            context[:controller].send(:flash)[:error] = l(:label_backlogs_unconfigured, {:administration => l(:label_administration), :plugins => l(:label_plugins), :configure => l(:button_configure)})
+          end
         end
 
-        return context[:controller].send(:render_to_string, {:locals => context}.merge(:partial=> 'hooks/rb_include_scripts'))
+        return context[:controller].send(:render_to_string, {
+          :locals => context,
+          :partial=> 'hooks/rb_include_scripts'})
       end
 
       def view_timelog_edit_form_bottom(context={ })
@@ -300,16 +396,17 @@ module BacklogsPlugin
         return '' if time_entry[:issue_id].blank?
 
         params = context[:params]
-        return unless params.include?("commit")
 
         issue = Issue.find(time_entry.issue_id)
         return unless Backlogs.configured?(issue.project) &&
                       Backlogs.setting[:timelog_from_taskboard]=='enabled'
 
         if issue.is_task? && User.current.allowed_to?(:update_remaining_hours, time_entry.project) != nil
-          remaining_hours = params[:remaining_hours].gsub(',','.').to_f
-          if remaining_hours != issue.remaining_hours
-            issue.journalized_update_attribute(:remaining_hours, remaining_hours) if time_entry.save
+          if params.include?("remaining_hours")
+            remaining_hours = params[:remaining_hours].gsub(',','.').to_f
+            if remaining_hours != issue.remaining_hours
+              issue.journalized_update_attribute(:remaining_hours, remaining_hours) if time_entry.save
+            end
           end
         end
       end

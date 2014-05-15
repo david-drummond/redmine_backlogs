@@ -21,9 +21,8 @@ module Backlogs
     g = nil
     if File.directory?(git)
       Dir.chdir(root)
-      g = `git log | head -1 | awk '{print $2}'`
-      g.strip!
-      g = "(#{g})"
+      g = `git describe --tags --abbrev=10`
+      g = "(#{g.strip})" if g
     end
 
     v = [v, g].compact.join(' ')
@@ -38,31 +37,59 @@ module Backlogs
   module_function :"development?"
 
   def platform_support(raise_error = false)
-    supported = Rails.cache.fetch("Backlogs.platform_supported", {:expires_in => 24.hours}) {
-      versions = nil # needed so versions isn't block-scoped in the timeout
-      begin
-        ReliableTimout.timeout(10) { versions = YAML::load(open('http://www.redminebacklogs.net/versions.yml').read) }
-      rescue
-        versions = YAML::load(File.open(File.join(File.dirname(__FILE__), 'versions.yml')).read)
-      end
-      versions
+    travis = nil # needed so versions isn't block-scoped in the timeout
+    begin
+      ReliableTimout.timeout(10) { travis = YAML::load(open('https://raw.github.com/backlogs/redmine_backlogs/master/.travis.yml').read) }
+    rescue
+      travis = YAML::load(File.open(File.join(File.dirname(__FILE__), '..', '.travis.yml')).read)
+    end
+
+    matrix = []
+    travis['rvm'].each{|rvm|
+      travis['env'].each{|env|
+        matrix << {'ruby' => rvm, 'env' => env}
+      }
     }
 
-    return "You are running backlogs #{Redmine::Plugin.find(:redmine_backlogs).version}, latest version is #{supported[:backlogs]}" if Redmine::Plugin.find(:redmine_backlogs).version != supported[:backlogs]
+    travis['matrix']['exclude'].each{|exc|
+      # if all values of the exclusion match, remove the cell
+      matrix.delete_if{|cell| exc.keys.collect{|k| cell[k] == exc[k] ? '' : 'x'}.join('') == '' }
+    } unless travis['matrix']['exclude'].nil?
 
-    supported = supported[platform]
-    raise "Unsupported platform #{platform}" unless supported
+    travis['matrix']['include'].each{|exc|
+      rvm = exc['rvm']
+      env = exc['env']
+      matrix << {'ruby' => rvm, 'env' => env}
+    } unless travis['matrix']['include'].nil?
 
-    currentversion = Redmine::VERSION.to_a.collect{|d| d.to_s}
-    r = RUBY_VERSION.split('.')
-    supported.each{|version|
-      v = version[:version].split('.')
-      next unless currentversion[0,v.length] == v
+    travis['matrix']['allow_failures'].each{|af|
+      # if all values of the allowed failure match, the cell is unsupported
+      matrix.each{|cell|
+        cell[:unsupported] = true if af.keys.collect{|k| cell[k] == af[k] ? '' : 'x'}.join('') == ''
+      }
+    } unless travis['matrix']['allowed_failures'].nil?
 
-      v = version[:ruby].split('.')
-      next unless r[0,v.length] == v
+    matrix.each{|cell|
+      cell[:version] = cell.delete('env').gsub(/^REDMINE_VER=/, '').gsub(/\s.*/, '')
+      cell[:platform] = (cell[:version] =~ /^[0-9]/ ? :redmine : :chiliproject)
+    }
 
-      return "#{Redmine::VERSION}#{version[:unsupported] ? '(unsupported but might work)' : ''}"
+    plugin_version = Redmine::Plugin.find(:redmine_backlogs).version
+    return "#{Redmine::VERSION}. You are running backlogs #{plugin_version}, latest version is #{travis['release']}" if plugin_version != travis['release']
+
+    supported = matrix.select{|cell| cell[:platform] == platform}
+    raise "Unsupported platform #{platform}" unless supported.size > 0
+
+    platform_version = Redmine::VERSION.to_a.collect{|d| d.to_s}
+    ruby_version = RUBY_VERSION.split('.')
+    supported.each{|cell|
+      v = cell[:version].split('.')
+      next unless platform_version[0,v.length] == v
+
+      v = cell[:ruby].split('.')
+      next unless ruby_version[0,v.length] == v
+
+      return "#{Redmine::VERSION}#{cell[:unsupported] ? '(unsupported but might work)' : ''}"
     }
 
     return "#{Redmine::VERSION} (DEVELOPMENT MODE)" if development?
@@ -96,7 +123,7 @@ module Backlogs
   module_function :gems
 
   def trackers
-    return {:task => !RbTask.tracker.nil?, :story => RbStory.trackers.size != 0, :default_priority => !IssuePriority.default.nil?}
+    return {:task => !!Tracker.find_by_id(RbTask.tracker), :story => !RbStory.trackers.empty?, :default_priority => !IssuePriority.default.nil?}
   end
   module_function :trackers
 
@@ -166,10 +193,14 @@ module Backlogs
     include Singleton
 
     def [](key)
-      return safe_load[key]
+      key = key.intern if key.is_a?(String)
+      settings = safe_load
+      # add alternate loading because settings loading on ruby 1.9.3 seems to sometimes convert keys to strings on save.
+      return settings[key] || settings[key.to_s]
     end
 
     def []=(key, value)
+      key = key.intern if key.is_a?(String)
       settings = safe_load
       settings[key] = value
       Setting.plugin_redmine_backlogs = settings

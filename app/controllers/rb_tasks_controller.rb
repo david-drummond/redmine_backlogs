@@ -29,6 +29,8 @@ class RbTasksController < RbApplicationController
     status = (result ? 200 : 400)
     @include_meta = true
 
+    @task.story.story_follow_task_state if @task.story
+
     respond_to do |format|
       format.html { render :partial => "task", :object => @task, :status => status }
     end
