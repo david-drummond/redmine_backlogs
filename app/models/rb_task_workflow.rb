@@ -8,7 +8,7 @@ require 'set'
 # task statuses that override the defaults in 1). See
 # RbProjectTaskStatus model.
 
-class RbTaskWorkflow < Workflow
+class RbTaskWorkflow < WorkflowRule
 
   # Generate a uniquely characterising id for a workflow.
 
@@ -60,11 +60,11 @@ class RbTaskWorkflow < Workflow
 
   def self.synchronize!
     self.unused_workflows.each{|w|
-      w = Workflow.find(:first,:conditions => w)
+      w = WorkflowRule.find(:first,:conditions => w)
       w.destroy if w
     }
     self.missing_workflows.map{|w|
-      w = Workflow.new(w)
+      w = WorkflowRule.new(w)
       w.save!
       w
     }
