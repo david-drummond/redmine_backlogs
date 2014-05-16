@@ -74,9 +74,6 @@ def rb_common_routes(rb)
                :to => 'rb_master_backlogs#menu'
   rb_match rb, 'master_backlog/:project_id/closed_sprints', :to => 'rb_master_backlogs#closed_sprints'
 
-  rb_match rb, 'issue_statuses/edit/:project_id', :to => 'rb_issue_statuses#edit'
-  rb_match rb, 'issue_statuses/update/:project_id',
-              :to => 'rb_issue_statuses#update'
   rb_match rb, 'taskboards/update/:sprint_id',
               :to => 'rb_taskboards#update'
 

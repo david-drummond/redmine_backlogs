@@ -17,6 +17,19 @@
                    :html => {:id => 'backlogs-form',
                              :method => :post} do |f| %>
 
+<%
+    @issue_statuses = IssueStatus.find(:all,:order => 'position')
+
+    # Create a lookup of issue statuses for a given project.
+    @project_statuses = RbProjectTaskStatus.find(
+      :all,
+      :conditions => {:project_id => @project.id})
+    @project_statuses = @project_statuses.inject({}){|s,v|
+      s[v[:issue_status_id]] = v
+      s
+    }
+%>
+
 <%= error_messages_for 'rb_project_settings' %>
 
 <div class="box">
@@ -33,5 +46,33 @@
       @project.rb_project_settings.show_in_scrum_stats) %>
 </p>
 </div>
+
+<div class="box">
+<p>
+  Select issue statuses you want to use for sprint tasks.
+  These will show up as columns on the taskboard.
+  If you leave all the boxes unchecked, the default
+  issues statuses will be used.  These are defined in
+  the main backlogs configuration page.
+</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Issue status name</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @issue_statuses.each do |s| %>
+      <tr>
+        <td ><%= check_box_tag("issue_statuses[#{s[:id]}","1",@project_statuses.has_key?(s[:id])) %></td>
+        <td ><%= s.name %></td>
+      </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
 <%= submit_tag(l(:button_save)) %>
 <% end %>
