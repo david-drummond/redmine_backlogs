@@ -74,6 +74,9 @@ def rb_common_routes(rb)
                :to => 'rb_master_backlogs#menu'
   rb_match rb, 'master_backlog/:project_id/closed_sprints', :to => 'rb_master_backlogs#closed_sprints'
 
+  rb_match rb, 'master_backlog/:project_id/category/:category_id',
+               :to => 'rb_master_backlogs#showcategory'
+
   rb_match rb, 'taskboards/update/:sprint_id',
               :to => 'rb_taskboards#update'
 
@@ -116,7 +119,7 @@ ActionController::Routing::Routes.draw do |map|
     rb.resources  :tasks,            :only => :index,               :controller => :rb_tasks,           :as => "tasks/:story_id"
     rb.resource   :taskboard,        :only => :show,                :controller => :rb_taskboards,      :as => "taskboards/:sprint_id"
     rb.resource   :taskboard,        :only => :current,             :controller => :rb_taskboards,      :as => "projects/:project_id/taskboard"
-
+    rb.resource   :backlogcategory,  :only => :showcategory,        :controller => :rb_master_backlogs, :as => "rb/master_backlog/:project_id/category"
     rb_common_routes rb
   end
 end

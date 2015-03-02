@@ -46,6 +46,16 @@ class RbStory < Issue
       and release_id in (?)", self.trackers, release_ids]
   end
 
+  def self.__find_options_category_condition(project_id, category_ids)
+    if category_ids
+      ["
+        project_id in (#{Project.find(project_id).projects_in_shared_product_backlog.map{|p| p.id}.join(',')})
+        and tracker_id in (?)
+        and fixed_version_id is NULL
+        and category_id IN (?)", self.trackers, category_ids]
+    end
+  end
+
   def self.__find_options_pbl_condition(project_id)
     ["
       project_id in (#{Project.find(project_id).projects_in_shared_product_backlog.map{|p| p.id}.join(',')})
@@ -74,12 +84,16 @@ class RbStory < Issue
 
     sprint_ids = self.__find_options_normalize_option(options.delete(:sprint))
     release_ids = self.__find_options_normalize_option(options.delete(:release))
+    category_ids = self.__find_options_normalize_option(options.delete(:category))
 
     if sprint_ids
       Backlogs::ActiveRecord.add_condition(options, self.__find_options_sprint_condition(project_id, sprint_ids))
     elsif release_ids
       Backlogs::ActiveRecord.add_condition(options, self.__find_options_release_condition(project_id, release_ids))
     else #product backlog
+      if category_ids
+        Backlogs::ActiveRecord.add_condition(options, self.__find_options_category_condition(project_id, category_ids))
+      end
       Backlogs::ActiveRecord.add_condition(options, self.__find_options_pbl_condition(project_id))
       options[:joins] ||= []
       options[:joins] [options[:joins]] unless options[:joins].is_a?(Array)
@@ -114,8 +128,24 @@ class RbStory < Issue
       }))
   end
 
+  def self.filteredbacklog(project_id, sprint_id, release_id, category_id, options={})
+    args = method(__method__).parameters.map { |arg| arg[1] }
+    self.visible.order("#{self.table_name}.position").
+      backlog_scope(
+        options.merge({
+          :project => project_id,
+          :sprint => sprint_id,
+          :release => release_id,
+          :category => category_id
+      }))
+  end
+
   def self.product_backlog(project, limit=nil)
     return RbStory.backlog(project.id, nil, nil, :limit => limit)
+  end
+
+  def self.filteredproduct_backlog(project, category=nil, limit=nil)
+    return RbStory.filteredbacklog(project.id, nil, nil, category, :limit => limit)
   end
 
   def self.sprint_backlog(sprint, options={})

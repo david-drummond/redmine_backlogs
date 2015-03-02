@@ -3,9 +3,29 @@ include RbCommonHelper
 class RbMasterBacklogsController < RbApplicationController
   unloadable
 
-  def show
-    product_backlog_stories = RbStory.product_backlog(@project)
+  def show(category_id=nil)
+
+    # customisation -- filter stories by category_id if needed
+    if category_id
+      product_backlog_stories = RbStory.filteredproduct_backlog(@project, category_id.to_i)
+    else
+      product_backlog_stories = RbStory.product_backlog(@project)
+    end
+
     @product_backlog = { :sprint => nil, :stories => product_backlog_stories }
+
+    $selected_category = nil
+
+    # customisation -- get an options list for the category filter
+    @categories = []
+    @categories << ['', url_for(:controller => 'rb_master_backlogs', :action => 'show', :project_id => params[:project_id], :only_path => true)]
+    @project.issue_categories.each do |c|
+      linkurl = url_for(:controller => 'rb_master_backlogs', :action => 'showcategory', :project_id => params[:project_id], :category_id => c.id, :only_path => true)
+      @categories << [c.name, linkurl]
+      if category_id.to_i == c.id.to_i
+        $selected_category = linkurl
+      end
+    end
 
     #collect all sprints which are sharing into @project
     sprints = @project.open_shared_sprints
@@ -20,8 +40,13 @@ class RbMasterBacklogsController < RbApplicationController
       ].flatten.compact.map{|s| s.updated_on}.sort.last
 
     respond_to do |format|
-      format.html { render :layout => "rb"}
+      format.html { render :action => "show", :layout => "rb"}
     end
+  end
+
+  def showcategory
+    category_id = params[:category_id]
+    show(category_id)
   end
 
   def _menu_new
