@@ -14,6 +14,14 @@ module RbCommonHelper
     story.blank? || story.assigned_to.blank? ? "" : "#{story.assigned_to.name}"
   end
 
+  def assignee_initials_or_empty(story)
+    if story.blank? || story.assigned_to.blank? 
+      "" 
+    else
+      '(' + story.assigned_to.firstname[0,1] + story.assigned_to.lastname[0,1] + ')'
+    end
+  end
+
   def blocked_ids(blocked)
     blocked.map{|b| b.id }.join(',')
   end
